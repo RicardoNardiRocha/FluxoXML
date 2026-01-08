@@ -24,20 +24,6 @@ export default function HomePage() {
           </div>
         </SidebarHeader>
         <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton isActive tooltip="Livro de Saída">
-                <HomeIcon />
-                <span>Livro de Saída</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Configurações">
-                <Settings />
-                <span>Configurações</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
