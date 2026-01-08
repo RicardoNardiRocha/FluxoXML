@@ -48,12 +48,13 @@ export function generateSaidasPDF(invoices: NFe[]) {
     // --- TABELA PRINCIPAL DE NOTAS ---
     const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
 
-    const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'UF', 'Valor Contábil', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
+    const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor Contábil', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
     const mainTableBody = authorizedInvoices.map(inv => [
         'NFE',
         inv.serie,
         inv.numero,
         formatDate(inv.dataEmissao),
+        inv.cfop,
         'SP', // Placeholder, ideal seria extrair do XML se disponível
         formatCurrency(inv.valorTotal),
         formatCurrency(inv.baseCalculoICMS),
@@ -78,11 +79,12 @@ export function generateSaidasPDF(invoices: NFe[]) {
             fontSize: 7,
         },
         columnStyles: {
-            5: { halign: 'right' },
+            4: { halign: 'center' },
             6: { halign: 'right' },
             7: { halign: 'right' },
             8: { halign: 'right' },
             9: { halign: 'right' },
+            10: { halign: 'right' },
         }
     });
 
