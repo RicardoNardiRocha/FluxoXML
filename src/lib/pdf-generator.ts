@@ -83,11 +83,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
     
     let valorContabilAcumulado = 0;
     const mainTableBody = invoices.map(inv => {
-        if (inv.situacao === 'Autorizada') {
-            valorContabilAcumulado += inv.valorTotal;
-        } else if (inv.situacao === 'Cancelada') {
-            valorContabilAcumulado -= inv.valorTotal;
-        }
+        valorContabilAcumulado += inv.valorTotal;
 
         return [
             'NFE',

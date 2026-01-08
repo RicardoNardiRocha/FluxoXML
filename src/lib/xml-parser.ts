@@ -76,6 +76,8 @@ export function processNFeXML(xmlText: string): NFe | null {
        console.warn(`NF-e ${id} com status não esperado: ${cStat}. Tratada como Autorizada.`);
     }
 
+    const isCanceled = situacao === 'Cancelada';
+
     const nfeData: NFe = {
       id: id,
       numero: parseInt(getTagValue(ide, 'nNF', NFeNamespace) || '0', 10),
@@ -92,9 +94,9 @@ export function processNFeXML(xmlText: string): NFe | null {
       },
       cfop: parseInt(getTagValue(infNFe.getElementsByTagNameNS(NFeNamespace, 'det')[0], 'CFOP', NFeNamespace) || '0', 10),
       situacao: situacao,
-      valorTotal: parseFloat(getTagValue(ICMSTot, 'vNF', NFeNamespace) || '0'),
-      baseCalculoICMS: parseFloat(getTagValue(ICMSTot, 'vBC', NFeNamespace) || '0'),
-      valorICMS: parseFloat(getTagValue(ICMSTot, 'vICMS', NFeNamespace) || '0'),
+      valorTotal: isCanceled ? 0 : parseFloat(getTagValue(ICMSTot, 'vNF', NFeNamespace) || '0'),
+      baseCalculoICMS: isCanceled ? 0 : parseFloat(getTagValue(ICMSTot, 'vBC', NFeNamespace) || '0'),
+      valorICMS: isCanceled ? 0 : parseFloat(getTagValue(ICMSTot, 'vICMS', NFeNamespace) || '0'),
     };
 
     return nfeData;
