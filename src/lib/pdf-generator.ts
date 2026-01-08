@@ -18,14 +18,23 @@ const formatCurrency = (value: number) => {
 };
 
 const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    const date = new Date(dateString);
+    // Adiciona o fuso horário para garantir que a data não mude
+    return new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000).toLocaleDateString('pt-BR');
 };
+
 
 function getUfFromDestinatario(invoice: NFe): string {
     return invoice.destinatario.uf || 'SP';
 }
 
 export function generateSaidasPDF(invoices: NFe[]) {
+    if (invoices.length === 0) {
+        // Early return if there's nothing to process
+        console.warn("generateSaidasPDF called with no invoices.");
+        return;
+    }
+
     const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'pt',
@@ -35,8 +44,11 @@ export function generateSaidasPDF(invoices: NFe[]) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
     
-    // Process both authorized and canceled invoices
-    const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
+    // Pega os dados do emissor da primeira nota (assume que todas são do mesmo emissor)
+    const emitter = invoices[0].emitente;
+    const periodDate = new Date(invoices[0].dataEmissao);
+    const period = `${(periodDate.getMonth() + 1).toString().padStart(2, '0')}/${periodDate.getFullYear()}`;
+
 
     // Função para adicionar cabeçalho e rodapé em uma página específica
     const addHeaderAndFooterToPage = (data: { pageNumber: number, settings: { margin: { top: number } } }) => {
@@ -45,10 +57,10 @@ export function generateSaidasPDF(invoices: NFe[]) {
         doc.text('REGISTRO DE SAÍDAS', pageWidth / 2, margin + 10, { align: 'center' });
 
         const headerInfo = [
-            { label: 'FIRMA:', value: 'OSKAR H&M COMERCIO LTDA' },
-            { label: 'C.N.P.J.:', value: '55.426.922/0001-57' },
-            { label: 'INSCR. EST.:', value: '' },
-            { label: 'MÊS OU PERÍODO/ANO:', value: '12/2025' }
+            { label: 'FIRMA:', value: emitter.nome },
+            { label: 'C.N.P.J.:', value: emitter.cnpj },
+            { label: 'INSCR. EST.:', value: emitter.ie },
+            { label: 'MÊS OU PERÍODO/ANO:', value: period }
         ];
 
         doc.setFontSize(8).setFont('helvetica', 'normal');
@@ -90,11 +102,13 @@ export function generateSaidasPDF(invoices: NFe[]) {
             formatCurrency(inv.valorICMS),
             '0,00',
             '0,00',
-            inv.situacao === 'Cancelada' ? 'CANCELADA' : '' // Add "CANCELADA" to observations
+            inv.situacao === 'Cancelada' ? 'CANCELADA' : ''
         ];
     });
+
+    // Filtra apenas as autorizadas para os resumos
+    const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
     
-    let totalAcumulado = { valorContabil: 0, baseCalculoICMS: 0, valorICMS: 0 };
     const styles = { fontSize: 6 };
     const headStyles = { fillColor: [230, 230, 230], textColor: 40, fontSize: 6, halign: 'center' };
     const columnStyles = {

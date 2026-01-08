@@ -37,6 +37,8 @@ export function processNFeXML(xmlText: string): NFe | null {
     }
 
     const ide = infNFe.getElementsByTagNameNS(NFeNamespace, 'ide')[0];
+    const emit = infNFe.getElementsByTagNameNS(NFeNamespace, 'emit')[0];
+    const enderEmit = emit?.getElementsByTagNameNS(NFeNamespace, 'enderEmit')[0];
     const dest = infNFe.getElementsByTagNameNS(NFeNamespace, 'dest')[0];
     const enderDest = dest?.getElementsByTagNameNS(NFeNamespace, 'enderDest')[0];
     const total = infNFe.getElementsByTagNameNS(NFeNamespace, 'total')[0];
@@ -50,9 +52,12 @@ export function processNFeXML(xmlText: string): NFe | null {
     let situacao: 'Autorizada' | 'Cancelada' = 'Autorizada';
     const cStat = infProt ? getTagValue(infProt, 'cStat', NFeNamespace) : undefined;
 
-    if (cStat === '101' || cStat === '135') { // 101 = Cancelamento Homologado, 135 = Evento Registrado
+    // Cenário 1: Protocolo de Cancelamento (101) ou Evento de Cancelamento Registrado (135)
+    if (cStat === '101' || cStat === '135') { 
         situacao = 'Cancelada';
-    } else {
+    } 
+    // Cenário 2: O XML é de um evento de cancelamento em si
+    else {
         const evento = xmlDoc.getElementsByTagNameNS(NFeNamespace, 'evento');
         for (let i = 0; i < evento.length; i++) {
             const detEvento = evento[i].getElementsByTagNameNS(NFeNamespace, 'detEvento')[0];
@@ -66,6 +71,7 @@ export function processNFeXML(xmlText: string): NFe | null {
         }
     }
     
+    // Fallback: Se não for cancelada, mas o status não for 100 (Autorizado) ou 150 (Autorizado fora do prazo), loga um aviso.
     if (situacao === 'Autorizada' && cStat !== '100' && cStat !== '150') { 
        console.warn(`NF-e ${id} com status não esperado: ${cStat}. Tratada como Autorizada.`);
     }
@@ -75,6 +81,11 @@ export function processNFeXML(xmlText: string): NFe | null {
       numero: parseInt(getTagValue(ide, 'nNF', NFeNamespace) || '0', 10),
       serie: parseInt(getTagValue(ide, 'serie', NFeNamespace) || '0', 10),
       dataEmissao: getTagValue(ide, 'dhEmi', NFeNamespace) || new Date().toISOString(),
+      emitente: {
+        nome: getTagValue(emit, 'xNome', NFeNamespace) || 'Não identificado',
+        cnpj: getTagValue(emit, 'CNPJ', NFeNamespace) || 'N/A',
+        ie: getTagValue(emit, 'IE', NFeNamespace) || 'N/A',
+      },
       destinatario: {
         nome: getTagValue(dest, 'xNome', NFeNamespace) || 'Não identificado',
         uf: getTagValue(enderDest, 'UF', NFeNamespace) || 'N/A',

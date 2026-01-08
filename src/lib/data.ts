@@ -3,6 +3,11 @@ export type NFe = {
   numero: number;
   serie: number;
   dataEmissao: string;
+  emitente: {
+    nome: string;
+    cnpj: string;
+    ie: string;
+  };
   destinatario: {
     nome: string;
     uf?: string; // Adicionado campo UF
