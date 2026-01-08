@@ -3,44 +3,56 @@
 import { UploadCloud } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { useCallback, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, type FileRejection } from 'react-dropzone';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface FileUploaderProps {
-  onUpload: () => void;
+  onUpload: (files: File[]) => void;
+  disabled?: boolean;
 }
 
-export function FileUploader({ onUpload }: FileUploaderProps) {
+export function FileUploader({ onUpload, disabled }: FileUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const { toast } = useToast();
 
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
+    async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
+      if (fileRejections.length > 0) {
+        toast({
+            variant: 'destructive',
+            title: 'Arquivo inválido',
+            description: 'Por favor, envie apenas arquivos no formato .xml.',
+        });
+        return;
+      }
+      
       if (acceptedFiles.length > 0) {
         setIsUploading(true);
-        // Simulate upload and processing
-        setTimeout(() => {
-          onUpload();
-          setIsUploading(false);
-        }, 1000);
+        await onUpload(acceptedFiles);
+        setIsUploading(false);
       }
     },
-    [onUpload]
+    [onUpload, toast]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'text/xml': ['.xml'] },
-    disabled: isUploading,
+    disabled: isUploading || disabled,
   });
 
+  const isDisabled = isUploading || disabled;
+
   return (
-    <Card className={cn('h-full', isUploading && 'opacity-50 cursor-not-allowed')}>
+    <Card className={cn('h-full', isDisabled && 'opacity-50 cursor-not-allowed')}>
       <CardContent className="p-6 h-full">
         <div
           {...getRootProps()}
           className={cn(
-            'flex flex-col items-center justify-center w-full h-full rounded-lg border-2 border-dashed border-border cursor-pointer hover:bg-muted transition-colors',
-            isDragActive && 'bg-muted border-primary'
+            'flex flex-col items-center justify-center w-full h-full rounded-lg border-2 border-dashed border-border transition-colors',
+            !isDisabled && 'cursor-pointer hover:bg-muted',
+            isDragActive && !isDisabled && 'bg-muted border-primary'
           )}
         >
           <input {...getInputProps()} />
