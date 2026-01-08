@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { generateSaidasPDF } from '@/lib/pdf-generator';
 
 
 interface InvoiceTableProps {
@@ -42,36 +43,6 @@ const formatCurrency = (value: number) => {
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
-
-const convertToCSV = (invoices: NFe[]): string => {
-  const header = [
-    'Numero',
-    'Serie',
-    'DataEmissao',
-    'Destinatario',
-    'CFOP',
-    'Situacao',
-    'ValorTotal',
-    'BaseCalculoICMS',
-    'ValorICMS',
-    'Chave',
-  ];
-  const rows = invoices.map(inv => [
-    inv.numero,
-    inv.serie,
-    formatDate(inv.dataEmissao),
-    `"${inv.destinatario.nome.replace(/"/g, '""')}"`, // Handle quotes in names
-    inv.cfop,
-    inv.situacao,
-    inv.valorTotal.toFixed(2),
-    inv.baseCalculoICMS.toFixed(2),
-    inv.valorICMS.toFixed(2),
-    `'${inv.id}`, // Prepend with ' to avoid scientific notation in some spreadsheet tools
-  ].join(','));
-
-  return [header.join(','), ...rows].join('\n');
-};
-
 
 export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
@@ -107,28 +78,17 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     }
 
     try {
-      const csvData = convertToCSV(invoices);
-      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', 'livro-saida.csv');
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      generateSaidasPDF(invoices);
        toast({
         title: 'Exportação Concluída!',
-        description: `O arquivo 'livro-saida.csv' foi baixado com ${invoices.length} notas.`,
+        description: `O arquivo 'livro-saida.pdf' foi gerado com sucesso.`,
         variant: 'success',
       });
     } catch (error) {
         toast({
             variant: 'destructive',
             title: 'Falha na Exportação',
-            description: 'Ocorreu um erro ao gerar o arquivo CSV.',
+            description: 'Ocorreu um erro ao gerar o arquivo PDF.',
         });
     }
   };
@@ -258,5 +218,3 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     </Card>
   );
 }
-
-    
