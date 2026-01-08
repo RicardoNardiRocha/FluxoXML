@@ -5,7 +5,7 @@ function getTagValue(xml: Element | Document, tagName: string, namespace?: strin
   return elements?.[0]?.textContent ?? undefined;
 }
 
-function getAttributeValue(xml: Element | Document, tagName: string, attribute: string, namespace?: string): string | undefined {
+function getAttributeValue(xml: Element | Document, tagName:string, attribute: string, namespace?: string): string | undefined {
     const elements = namespace ? xml.getElementsByTagNameNS(namespace, tagName) : xml.getElementsByTagName(tagName);
     return elements?.[0]?.getAttribute(attribute) ?? undefined;
   }
@@ -15,7 +15,6 @@ export function processNFeXML(xmlText: string): NFe | null {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlText, "text/xml");
     
-    // Check for parsing errors
     const parserError = xmlDoc.querySelector('parsererror');
     if (parserError) {
       console.error("Erro de parse no XML:", parserError.textContent);
@@ -46,28 +45,29 @@ export function processNFeXML(xmlText: string): NFe | null {
     const protNFe = rootEl.getElementsByTagNameNS(NFeNamespace, 'protNFe')[0];
     const infProt = protNFe?.getElementsByTagNameNS(NFeNamespace, 'infProt')[0];
 
-    // Chave da NFe
     const id = infNFe.getAttribute('Id')?.replace('NFe', '') || `temp-${Math.random()}`;
 
-    // Status (Autorizada ou Cancelada)
     let situacao: 'Autorizada' | 'Cancelada' = 'Autorizada';
     const cStat = infProt ? getTagValue(infProt, 'cStat', NFeNamespace) : undefined;
-    
-    // Check for cancellation event
-    const evento = xmlDoc.getElementsByTagNameNS(NFeNamespace, 'evento');
-    for (let i = 0; i < evento.length; i++) {
-        const detEvento = evento[i].getElementsByTagNameNS(NFeNamespace, 'detEvento')[0];
-        if (detEvento?.getAttribute('descEvento') === 'Cancelamento') {
-           const evCancStat = detEvento.getElementsByTagNameNS(NFeNamespace, 'cStat')[0]?.textContent;
-           if(evCancStat === '135' || evCancStat === '101') { // Evento registrado e vinculado / Cancelamento Homologado
-            situacao = 'Cancelada';
-            break;
-           }
+
+    if (cStat === '101' || cStat === '135') { // 101 = Cancelamento Homologado, 135 = Evento Registrado
+        situacao = 'Cancelada';
+    } else {
+        const evento = xmlDoc.getElementsByTagNameNS(NFeNamespace, 'evento');
+        for (let i = 0; i < evento.length; i++) {
+            const detEvento = evento[i].getElementsByTagNameNS(NFeNamespace, 'detEvento')[0];
+            if (detEvento?.getAttribute('descEvento')?.toLowerCase().includes('cancelamento')) {
+               const evCancStat = detEvento.getElementsByTagNameNS(NFeNamespace, 'cStat')[0]?.textContent;
+               if(evCancStat === '135' || evCancStat === '101') { 
+                situacao = 'Cancelada';
+                break;
+               }
+            }
         }
     }
     
-    if (situacao !== 'Cancelada' && cStat !== '100' && cStat !== '150') { // 100: Autorizado, 150: Autorizado fora do prazo
-       console.warn(`NF-e com status não tratado: ${cStat}`);
+    if (situacao === 'Autorizada' && cStat !== '100' && cStat !== '150') { 
+       console.warn(`NF-e ${id} com status não esperado: ${cStat}. Tratada como Autorizada.`);
     }
 
     const nfeData: NFe = {
@@ -79,7 +79,6 @@ export function processNFeXML(xmlText: string): NFe | null {
         nome: getTagValue(dest, 'xNome', NFeNamespace) || 'Não identificado',
         uf: getTagValue(enderDest, 'UF', NFeNamespace) || 'N/A',
       },
-      // O CFOP é por item, pegando o primeiro como representativo
       cfop: parseInt(getTagValue(infNFe.getElementsByTagNameNS(NFeNamespace, 'det')[0], 'CFOP', NFeNamespace) || '0', 10),
       situacao: situacao,
       valorTotal: parseFloat(getTagValue(ICMSTot, 'vNF', NFeNamespace) || '0'),
