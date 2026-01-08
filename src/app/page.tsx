@@ -19,7 +19,7 @@ export default function HomePage() {
           <div className="flex items-center justify-center gap-3">
             <FileText className="size-8 text-primary" />
             <h1 className="text-2xl font-bold text-foreground group-data-[collapsible=icon]:hidden">
-              Contabilx
+              ContabilX
             </h1>
           </div>
         </SidebarHeader>
