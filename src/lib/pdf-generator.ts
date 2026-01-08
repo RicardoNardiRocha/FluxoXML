@@ -34,6 +34,8 @@ export function generateSaidasPDF(invoices: NFe[]) {
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
+    
+    // Process both authorized and canceled invoices
     const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
 
     // Função para adicionar cabeçalho e rodapé em uma página específica
@@ -68,8 +70,13 @@ export function generateSaidasPDF(invoices: NFe[]) {
     const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor da Nota', 'Valor Contábil Acum.', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
     
     let valorContabilAcumulado = 0;
-    const mainTableBody = authorizedInvoices.map(inv => {
-        valorContabilAcumulado += inv.valorTotal;
+    const mainTableBody = invoices.map(inv => {
+        if (inv.situacao === 'Autorizada') {
+            valorContabilAcumulado += inv.valorTotal;
+        } else if (inv.situacao === 'Cancelada') {
+            valorContabilAcumulado -= inv.valorTotal;
+        }
+
         return [
             'NFE',
             inv.serie.toString(),
@@ -83,7 +90,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
             formatCurrency(inv.valorICMS),
             '0,00',
             '0,00',
-            ''
+            inv.situacao === 'Cancelada' ? 'CANCELADA' : '' // Add "CANCELADA" to observations
         ];
     });
     
@@ -99,6 +106,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
         9: { halign: 'right' },
         10: { halign: 'right' },
         11: { halign: 'right' },
+        12: { halign: 'center', fontStyle: 'bold' }
     };
     const boldStyle = { fontStyle: 'bold' };
 
