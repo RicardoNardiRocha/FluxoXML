@@ -1,3 +1,4 @@
+
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import type { NFe } from './data';
@@ -59,7 +60,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
         
         // --- RODAPÉ (Numeração de página) ---
         doc.setFontSize(8);
-        const pageNumberText = `Página ${data.pageNumber} de {totalPages}`;
+        const pageNumberText = `Página ${data.pageNumber} de {totalPages}`; // Placeholder
         doc.text(pageNumberText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         doc.text(`Folha: ${data.pageNumber}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left' });
     };
@@ -254,6 +255,20 @@ export function generateSaidasPDF(invoices: NFe[]) {
         styles: { ...styles, fontSize: 7 },
         columnStyles: { 0: { halign: 'center' }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
     });
+
+    // Loop final para substituir o placeholder
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        const textToReplace = `Página ${i} de {totalPages}`;
+        const newText = `Página ${i} de ${totalPages}`;
+        // Para substituir, redesenhamos o texto com a cor de fundo para "apagar" e depois escrevemos o novo
+        const textWidth = doc.getTextWidth(textToReplace);
+        doc.setFillColor(255, 255, 255); // Branco
+        doc.rect(pageWidth - margin - textWidth - 2, doc.internal.pageSize.getHeight() - 15, textWidth + 4, 10, 'F');
+        doc.text(newText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+    }
 
     doc.save('livro-saida.pdf');
 }
