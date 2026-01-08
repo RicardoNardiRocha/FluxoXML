@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'FiscalFlow',
+  title: 'Contabilx',
   description: 'Gere seu Livro de Saída a partir de arquivos XML de NF-e.',
 };
 
