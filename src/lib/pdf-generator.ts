@@ -37,8 +37,6 @@ export function generateSaidasPDF(invoices: NFe[]) {
 
     // Função para adicionar cabeçalho e rodapé em uma página específica
     const addHeaderAndFooterToPage = (data: { pageNumber: number, settings: { margin: { top: number } } }) => {
-        const pageCount = (doc as any).internal.getNumberOfPages();
-        
         // --- CABEÇALHO ---
         doc.setFontSize(14).setFont('helvetica', 'bold');
         doc.text('REGISTRO DE SAÍDAS', pageWidth / 2, margin + 10, { align: 'center' });
@@ -61,7 +59,8 @@ export function generateSaidasPDF(invoices: NFe[]) {
         
         // --- RODAPÉ (Numeração de página) ---
         doc.setFontSize(8);
-        doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        const pageNumberText = `Página ${data.pageNumber} de {totalPages}`;
+        doc.text(pageNumberText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         doc.text(`Folha: ${data.pageNumber}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left' });
     };
 
