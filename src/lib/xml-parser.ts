@@ -1,11 +1,11 @@
 import type { NFe } from './data';
 
-function getTagValue(xml: XMLDocument, tagName: string, namespace?: string): string | undefined {
+function getTagValue(xml: Element | Document, tagName: string, namespace?: string): string | undefined {
   const elements = namespace ? xml.getElementsByTagNameNS(namespace, tagName) : xml.getElementsByTagName(tagName);
   return elements?.[0]?.textContent ?? undefined;
 }
 
-function getAttributeValue(xml: XMLDocument, tagName: string, attribute: string, namespace?: string): string | undefined {
+function getAttributeValue(xml: Element | Document, tagName: string, attribute: string, namespace?: string): string | undefined {
     const elements = namespace ? xml.getElementsByTagNameNS(namespace, tagName) : xml.getElementsByTagName(tagName);
     return elements?.[0]?.getAttribute(attribute) ?? undefined;
   }
@@ -31,13 +31,18 @@ export function processNFeXML(xmlText: string): NFe | null {
         throw new Error("Estrutura de NF-e não encontrada no XML.");
     }
     
-    const infNFe = (nfeNode || nfeProc).getElementsByTagNameNS(NFeNamespace, 'infNFe')[0];
+    const rootEl = nfeProc || nfeNode;
+    const infNFe = rootEl.getElementsByTagNameNS(NFeNamespace, 'infNFe')[0];
+    if (!infNFe) {
+      throw new Error("Tag <infNFe> não encontrada no XML.");
+    }
+
     const ide = infNFe.getElementsByTagNameNS(NFeNamespace, 'ide')[0];
-    const emit = infNFe.getElementsByTagNameNS(NFeNamespace, 'emit')[0];
     const dest = infNFe.getElementsByTagNameNS(NFeNamespace, 'dest')[0];
     const total = infNFe.getElementsByTagNameNS(NFeNamespace, 'total')[0];
     const ICMSTot = total.getElementsByTagNameNS(NFeNamespace, 'ICMSTot')[0];
-    const protNFe = (nfeNode || nfeProc).getElementsByTagNameNS(NFeNamespace, 'protNFe')[0];
+    
+    const protNFe = rootEl.getElementsByTagNameNS(NFeNamespace, 'protNFe')[0];
     const infProt = protNFe?.getElementsByTagNameNS(NFeNamespace, 'infProt')[0];
 
     // Chave da NFe
@@ -45,7 +50,7 @@ export function processNFeXML(xmlText: string): NFe | null {
 
     // Status (Autorizada ou Cancelada)
     let situacao: 'Autorizada' | 'Cancelada' = 'Autorizada';
-    const cStat = getTagValue(infProt, 'cStat', NFeNamespace);
+    const cStat = infProt ? getTagValue(infProt, 'cStat', NFeNamespace) : undefined;
     
     // Check for cancellation event
     const evento = xmlDoc.getElementsByTagNameNS(NFeNamespace, 'evento');
@@ -65,7 +70,6 @@ export function processNFeXML(xmlText: string): NFe | null {
        console.warn(`NF-e com status não tratado: ${cStat}`);
        // return null; // Ou pode-se optar por não adicionar notas não autorizadas
     }
-
 
     const nfeData: NFe = {
       id: id,
