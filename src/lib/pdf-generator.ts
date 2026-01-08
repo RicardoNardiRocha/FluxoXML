@@ -24,7 +24,6 @@ function getUfFromDestinatario(invoice: NFe): string {
     return invoice.destinatario.uf || 'SP';
 }
 
-
 export function generateSaidasPDF(invoices: NFe[]) {
     const doc = new jsPDF({
         orientation: 'landscape',
@@ -36,35 +35,34 @@ export function generateSaidasPDF(invoices: NFe[]) {
     const margin = 20;
     const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
 
-    // Função para adicionar cabeçalho e rodapé em todas as páginas
-    const addHeaderAndFooter = () => {
+    // Função para adicionar cabeçalho e rodapé em uma página específica
+    const addHeaderAndFooterToPage = (data: { pageNumber: number, settings: { margin: { top: number } } }) => {
         const pageCount = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
+        
+        // --- CABEÇALHO ---
+        doc.setFontSize(14).setFont('helvetica', 'bold');
+        doc.text('REGISTRO DE SAÍDAS', pageWidth / 2, margin + 10, { align: 'center' });
 
-            // --- CABEÇALHO ---
-            doc.setFontSize(14).setFont('helvetica', 'bold');
-            doc.text('REGISTRO DE SAÍDAS', pageWidth / 2, margin + 10, { align: 'center' });
+        const headerInfo = [
+            { label: 'FIRMA:', value: 'OSKAR H&M COMERCIO LTDA' },
+            { label: 'C.N.P.J.:', value: '55.426.922/0001-57' },
+            { label: 'INSCR. EST.:', value: '' },
+            { label: 'MÊS OU PERÍODO/ANO:', value: '12/2025' }
+        ];
 
-            const headerInfo = [
-                { label: 'FIRMA:', value: 'OSKAR H&M COMERCIO LTDA' },
-                { label: 'C.N.P.J.:', value: '55.426.922/0001-57' },
-                { label: 'INSCR. EST.:', value: '' },
-                { label: 'MÊS OU PERÍODO/ANO:', value: '12/2025' }
-            ];
+        doc.setFontSize(8).setFont('helvetica', 'normal');
+        let yPos = margin + 30;
+        headerInfo.forEach(info => {
+            doc.text(`${info.label} ${info.value}`, margin, yPos);
+            yPos += 12;
+        });
 
-            doc.setFontSize(8).setFont('helvetica', 'normal');
-            let yPos = margin + 30;
-            headerInfo.forEach(info => {
-                doc.text(`${info.label} ${info.value}`, margin, yPos);
-                yPos += 12;
-            });
-            
-             // --- RODAPÉ (Numeração de página) ---
-            doc.setFontSize(8);
-            doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-            doc.text(`Folha: ${i}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left'});
-        }
+        data.settings.margin.top = yPos;
+        
+        // --- RODAPÉ (Numeração de página) ---
+        doc.setFontSize(8);
+        doc.text(`Página ${data.pageNumber} de ${pageCount}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        doc.text(`Folha: ${data.pageNumber}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left' });
     };
 
     const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor Contábil', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
@@ -100,105 +98,30 @@ export function generateSaidasPDF(invoices: NFe[]) {
     doc.autoTable({
         head: mainTableHead,
         body: mainTableBody,
-        startY: 100, // Posição inicial da primeira tabela
+        startY: 100,
         theme: 'grid',
         styles: styles,
         headStyles: headStyles,
         columnStyles: columnStyles,
         footStyles: boldStyle,
-        didDrawPage: (data) => {
-             // --- CABEÇALHO (Apenas da página sendo desenhada) ---
-            doc.setFontSize(14).setFont('helvetica', 'bold');
-            doc.text('REGISTRO DE SAÍDAS', pageWidth / 2, margin + 10, { align: 'center' });
-            const headerInfo = [
-                { label: 'FIRMA:', value: 'OSKAR H&M COMERCIO LTDA' },
-                { label: 'C.N.P.J.:', value: '55.426.922/0001-57' },
-                { label: 'INSCR. EST.:', value: '' },
-                { label: 'MÊS OU PERÍODO/ANO:', value: '12/2025' }
-            ];
-            doc.setFontSize(8).setFont('helvetica', 'normal');
-            let yPos = margin + 30;
-            headerInfo.forEach(info => {
-                doc.text(`${info.label} ${info.value}`, margin, yPos);
-                yPos += 12;
-            });
-            // --- FIM CABEÇALHO ---
-
-            // Calcula totais da página
-            const pageInvoices = authorizedInvoices.slice(data.startRow.index, data.cursor.y > 0 ? data.row.index + 1 : authorizedInvoices.length);
-            const pageTotal = pageInvoices.reduce((acc, inv) => {
-                acc.valorContabil += inv.valorTotal;
-                acc.baseCalculoICMS += inv.baseCalculoICMS;
-                acc.valorICMS += inv.valorICMS;
-                return acc;
-            }, { valorContabil: 0, baseCalculoICMS: 0, valorICMS: 0 });
-
-            // Adiciona linha de "Transporte" no início de cada página > 1
-            if (data.pageNumber > 1) {
-                const transportRow = [
-                    { content: 'TRANSPORTE (TOTAIS DA PÁGINA ANTERIOR)', colSpan: 6, styles: { ...boldStyle, halign: 'left' } },
-                    { content: formatCurrency(totalAcumulado.valorContabil), styles: { ...boldStyle, halign: 'right' } },
-                    { content: formatCurrency(totalAcumulado.baseCalculoICMS), styles: { ...boldStyle, halign: 'right' } },
-                    { content: formatCurrency(totalAcumulado.valorICMS), styles: { ...boldStyle, halign: 'right' } },
-                    { content: '0,00', styles: { ...boldStyle, halign: 'right' } },
-                    { content: '0,00', styles: { ...boldStyle, halign: 'right' } },
-                    ''
-                ];
-                 // Adiciona a linha de transporte na posição correta
-                data.table.body.splice(data.startRow.index, 0, transportRow);
-            }
-
-            // Atualiza o total acumulado
-            totalAcumulado.valorContabil += pageTotal.valorContabil;
-            totalAcumulado.baseCalculoICMS += pageTotal.baseCalculoICMS;
-            totalAcumulado.valorICMS += pageTotal.valorICMS;
-        },
+        didDrawPage: addHeaderAndFooterToPage,
         willDrawCell: (data) => {
-            // Corrige o alinhamento para células com colspan
             if (typeof data.cell.raw === 'object' && data.cell.raw.colSpan) {
                 if(data.cell.raw.styles.halign === 'left') {
                     data.cell.styles.halign = 'left';
                 }
             }
         },
-        didDrawTable: (data) => {
-             const isLastPage = data.pageNumber === (doc as any).internal.getNumberOfPages();
-             if(isLastPage) {
-                const summaryLabel = 'TOTAIS GERAIS';
-                const summaryRow = [
-                       { content: summaryLabel, colSpan: 6, styles: { ...boldStyle, halign: 'left', fillColor: [240, 240, 240] } },
-                       { content: formatCurrency(totalAcumulado.valorContabil), styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: formatCurrency(totalAcumulado.baseCalculoICMS), styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: formatCurrency(totalAcumulado.valorICMS), styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: '0,00', styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: '0,00', styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: '', styles: {fillColor: [240, 240, 240]} }
-                   ];
-               data.table.body.push(summaryRow);
-             } else {
-                 const summaryLabel = 'A TRANSPORTAR (TOTAIS ATÉ ESTA PÁGINA)';
-                 const summaryRow = [
-                       { content: summaryLabel, colSpan: 6, styles: { ...boldStyle, halign: 'left', fillColor: [240, 240, 240] } },
-                       { content: formatCurrency(totalAcumulado.valorContabil), styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: formatCurrency(totalAcumulado.baseCalculoICMS), styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: formatCurrency(totalAcumulado.valorICMS), styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: '0,00', styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: '0,00', styles: { ...boldStyle, halign: 'right', fillColor: [240, 240, 240]} },
-                       { content: '', styles: {fillColor: [240, 240, 240]} }
-                   ];
-                data.table.body.push(summaryRow);
-             }
-        }
     });
 
     let finalY = doc.lastAutoTable.finalY;
 
     // --- RESUMO POR CFOP ---
     finalY += 20;
-    // Checa se precisa de uma nova página
     if (finalY > doc.internal.pageSize.getHeight() - 100) {
         doc.addPage();
-        finalY = 100; // Posição inicial na nova página
+        addHeaderAndFooterToPage({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { top: 0 } } });
+        finalY = 100;
     }
 
     doc.setFontSize(9).setFont('helvetica', 'bold');
@@ -259,7 +182,6 @@ export function generateSaidasPDF(invoices: NFe[]) {
         }
     }
 
-    // Total Geral CFOP
     cfopTableBody.push([
         { content: 'TOTAL', styles: { ...boldStyle, fillColor: [230,230,230] } },
         { content: formatCurrency(totalGeralCfop.valorContabil), styles: { ...boldStyle, halign: 'right', fillColor: [230,230,230] } },
@@ -286,6 +208,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
     finalY += 20;
      if (finalY > doc.internal.pageSize.getHeight() - 80) {
         doc.addPage();
+        addHeaderAndFooterToPage({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { top: 0 } } });
         finalY = 100;
     }
 
@@ -324,8 +247,6 @@ export function generateSaidasPDF(invoices: NFe[]) {
         styles: styles,
         columnStyles: { 0: { halign: 'center' }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
     });
-
-    addHeaderAndFooter();
 
     doc.save('livro-saida.pdf');
 }
