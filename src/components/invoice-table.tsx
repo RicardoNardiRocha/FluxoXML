@@ -22,6 +22,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card'
 import { useState } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface InvoiceTableProps {
   invoices: NFe[];
@@ -41,9 +43,41 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
+const convertToCSV = (invoices: NFe[]): string => {
+  const header = [
+    'Numero',
+    'Serie',
+    'DataEmissao',
+    'Destinatario',
+    'CFOP',
+    'Situacao',
+    'ValorTotal',
+    'BaseCalculoICMS',
+    'ValorICMS',
+    'Chave',
+  ];
+  const rows = invoices.map(inv => [
+    inv.numero,
+    inv.serie,
+    formatDate(inv.dataEmissao),
+    `"${inv.destinatario.nome.replace(/"/g, '""')}"`, // Handle quotes in names
+    inv.cfop,
+    inv.situacao,
+    inv.valorTotal.toFixed(2),
+    inv.baseCalculoICMS.toFixed(2),
+    inv.valorICMS.toFixed(2),
+    `'${inv.id}`, // Prepend with ' to avoid scientific notation in some spreadsheet tools
+  ].join(','));
+
+  return [header.join(','), ...rows].join('\n');
+};
+
+
 export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
+  const { toast } = useToast();
+
 
   const paginatedInvoices = invoices.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -62,6 +96,44 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     }
   };
 
+  const handleExport = () => {
+    if (invoices.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Nenhuma nota para exportar',
+        description: 'Filtre ou importe notas para poder exportar o livro.',
+      });
+      return;
+    }
+
+    try {
+      const csvData = convertToCSV(invoices);
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'livro-saida.csv');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+       toast({
+        title: 'Exportação Concluída!',
+        description: `O arquivo 'livro-saida.csv' foi baixado com ${invoices.length} notas.`,
+        variant: 'success',
+      });
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Falha na Exportação',
+            description: 'Ocorreu um erro ao gerar o arquivo CSV.',
+        });
+    }
+  };
+
+
   return (
     <Card>
       <CardHeader>
@@ -72,7 +144,7 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
               Lista detalhada de todas as notas fiscais importadas.
             </p>
           </div>
-          <Button>
+          <Button onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
             Exportar Livro
           </Button>
@@ -186,3 +258,5 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     </Card>
   );
 }
+
+    
