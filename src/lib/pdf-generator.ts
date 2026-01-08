@@ -65,25 +65,31 @@ export function generateSaidasPDF(invoices: NFe[]) {
         doc.text(`Folha: ${data.pageNumber}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left' });
     };
 
-    const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor Contábil', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
-    const mainTableBody = authorizedInvoices.map(inv => [
-        'NFE',
-        inv.serie.toString(),
-        inv.numero.toString(),
-        formatDate(inv.dataEmissao),
-        inv.cfop.toString(),
-        getUfFromDestinatario(inv),
-        formatCurrency(inv.valorTotal),
-        formatCurrency(inv.baseCalculoICMS),
-        formatCurrency(inv.valorICMS),
-        '0,00',
-        '0,00',
-        ''
-    ]);
+    const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor da Nota', 'Valor Contábil Acum.', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
+    
+    let valorContabilAcumulado = 0;
+    const mainTableBody = authorizedInvoices.map(inv => {
+        valorContabilAcumulado += inv.valorTotal;
+        return [
+            'NFE',
+            inv.serie.toString(),
+            inv.numero.toString(),
+            formatDate(inv.dataEmissao),
+            inv.cfop.toString(),
+            getUfFromDestinatario(inv),
+            formatCurrency(inv.valorTotal),
+            formatCurrency(valorContabilAcumulado),
+            formatCurrency(inv.baseCalculoICMS),
+            formatCurrency(inv.valorICMS),
+            '0,00',
+            '0,00',
+            ''
+        ];
+    });
     
     let totalAcumulado = { valorContabil: 0, baseCalculoICMS: 0, valorICMS: 0 };
-    const styles = { fontSize: 7 };
-    const headStyles = { fillColor: [230, 230, 230], textColor: 40, fontSize: 7, halign: 'center' };
+    const styles = { fontSize: 6 };
+    const headStyles = { fillColor: [230, 230, 230], textColor: 40, fontSize: 6, halign: 'center' };
     const columnStyles = {
         4: { halign: 'center' },
         5: { halign: 'center' },
@@ -92,6 +98,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
         8: { halign: 'right' },
         9: { halign: 'right' },
         10: { halign: 'right' },
+        11: { halign: 'right' },
     };
     const boldStyle = { fontStyle: 'bold' };
 
@@ -128,14 +135,15 @@ export function generateSaidasPDF(invoices: NFe[]) {
     doc.text('RESUMO MENSAL DE OPERAÇÕES E PRESTAÇÃO POR CÓDIGO FISCAL', margin, finalY);
     finalY += 15;
 
-    const cfopSummary: { [key: number]: { valorContabil: number, baseCalculo: number, imposto: number } } = {};
+    const cfopSummary: { [key: string]: { valorContabil: number, baseCalculo: number, imposto: number } } = {};
     authorizedInvoices.forEach(inv => {
-        if (!cfopSummary[inv.cfop]) {
-            cfopSummary[inv.cfop] = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
+        const cfopKey = inv.cfop.toString();
+        if (!cfopSummary[cfopKey]) {
+            cfopSummary[cfopKey] = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
         }
-        cfopSummary[inv.cfop].valorContabil += inv.valorTotal;
-        cfopSummary[inv.cfop].baseCalculo += inv.baseCalculoICMS;
-        cfopSummary[inv.cfop].imposto += inv.valorICMS;
+        cfopSummary[cfopKey].valorContabil += inv.valorTotal;
+        cfopSummary[cfopKey].baseCalculo += inv.baseCalculoICMS;
+        cfopSummary[cfopKey].imposto += inv.valorICMS;
     });
 
     const cfopTableHead = [['CÓD. FISC.', 'VLR. CONTÁBIL', 'BASE CÁLC.', 'IMPOSTO', 'ISENTAS', 'OUTRAS']];
@@ -150,7 +158,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
 
     for (const [groupTitle, groupItems] of Object.entries(cfopGroups)) {
         if (groupItems.length > 0) {
-            cfopTableBody.push([{ content: groupTitle, colSpan: 6, styles: { ...boldStyle, fillColor: [240, 240, 240] } }]);
+            cfopTableBody.push([{ content: groupTitle, colSpan: 6, styles: { ...boldStyle, fillColor: [240, 240, 240], fontSize: 7 } }]);
             let subTotal = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
 
             groupItems.forEach(([cfop, values]) => {
@@ -196,8 +204,8 @@ export function generateSaidasPDF(invoices: NFe[]) {
         head: cfopTableHead,
         body: cfopTableBody,
         theme: 'grid',
-        headStyles: headStyles,
-        styles: styles,
+        headStyles: { ...headStyles, fontSize: 7 },
+        styles: { ...styles, fontSize: 7 },
         columnStyles: { 0: { halign: 'center' }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
         didParseCell: function(data) { if (typeof data.cell.raw === 'object' && data.cell.raw.colSpan) { data.cell.styles.halign = 'left'; } }
     });
@@ -243,8 +251,8 @@ export function generateSaidasPDF(invoices: NFe[]) {
         head: ufTableHead,
         body: ufTableBody,
         theme: 'grid',
-        headStyles: headStyles,
-        styles: styles,
+        headStyles: { ...headStyles, fontSize: 7 },
+        styles: { ...styles, fontSize: 7 },
         columnStyles: { 0: { halign: 'center' }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
     });
 
