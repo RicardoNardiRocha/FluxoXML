@@ -17,7 +17,7 @@ export function FileUploader({ onUpload, disabled }: FileUploaderProps) {
   const { toast } = useToast();
 
   const onDrop = useCallback(
-    async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
+    (acceptedFiles: File[], fileRejections: FileRejection[]) => {
       if (fileRejections.length > 0) {
         toast({
             variant: 'destructive',
@@ -29,8 +29,11 @@ export function FileUploader({ onUpload, disabled }: FileUploaderProps) {
       
       if (acceptedFiles.length > 0) {
         setIsUploading(true);
-        await onUpload(acceptedFiles);
-        setIsUploading(false);
+        try {
+          onUpload(acceptedFiles);
+        } finally {
+          setIsUploading(false);
+        }
       }
     },
     [onUpload, toast]
