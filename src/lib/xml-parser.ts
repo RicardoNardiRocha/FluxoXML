@@ -39,6 +39,7 @@ export function processNFeXML(xmlText: string): NFe | null {
 
     const ide = infNFe.getElementsByTagNameNS(NFeNamespace, 'ide')[0];
     const dest = infNFe.getElementsByTagNameNS(NFeNamespace, 'dest')[0];
+    const enderDest = dest?.getElementsByTagNameNS(NFeNamespace, 'enderDest')[0];
     const total = infNFe.getElementsByTagNameNS(NFeNamespace, 'total')[0];
     const ICMSTot = total.getElementsByTagNameNS(NFeNamespace, 'ICMSTot')[0];
     
@@ -66,9 +67,7 @@ export function processNFeXML(xmlText: string): NFe | null {
     }
     
     if (situacao !== 'Cancelada' && cStat !== '100' && cStat !== '150') { // 100: Autorizado, 150: Autorizado fora do prazo
-       // Se não for cancelada e não estiver autorizada, podemos ignorar ou tratar como erro
        console.warn(`NF-e com status não tratado: ${cStat}`);
-       // return null; // Ou pode-se optar por não adicionar notas não autorizadas
     }
 
     const nfeData: NFe = {
@@ -78,6 +77,7 @@ export function processNFeXML(xmlText: string): NFe | null {
       dataEmissao: getTagValue(ide, 'dhEmi', NFeNamespace) || new Date().toISOString(),
       destinatario: {
         nome: getTagValue(dest, 'xNome', NFeNamespace) || 'Não identificado',
+        uf: getTagValue(enderDest, 'UF', NFeNamespace) || 'N/A',
       },
       // O CFOP é por item, pegando o primeiro como representativo
       cfop: parseInt(getTagValue(infNFe.getElementsByTagNameNS(NFeNamespace, 'det')[0], 'CFOP', NFeNamespace) || '0', 10),
@@ -91,7 +91,6 @@ export function processNFeXML(xmlText: string): NFe | null {
 
   } catch (e) {
     console.error("Erro ao processar XML da NF-e:", e);
-    // Retorna null para que o chamador saiba que este arquivo falhou
     return null;
   }
 }

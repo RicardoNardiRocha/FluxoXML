@@ -5,6 +5,7 @@ export type NFe = {
   dataEmissao: string;
   destinatario: {
     nome: string;
+    uf?: string; // Adicionado campo UF
   };
   cfop: number;
   situacao: 'Autorizada' | 'Cancelada';

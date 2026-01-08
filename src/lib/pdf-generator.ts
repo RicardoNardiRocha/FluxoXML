@@ -17,6 +17,17 @@ const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
+// Adicionado para extrair a UF do destinatário
+function getUfFromDestinatario(invoice: NFe): string {
+    // Esta função é um placeholder. A UF do destinatário deveria ser
+    // extraída do XML. Como não temos esse dado no tipo NFe,
+    // vamos usar um valor padrão ou tentar inferir.
+    // Para este exemplo, vamos retornar 'SP' como padrão.
+    // O ideal seria adicionar 'uf' ao objeto 'destinatario' em 'data.ts' e no 'xml-parser.ts'.
+    return invoice.destinatario.uf || 'SP';
+}
+
+
 export function generateSaidasPDF(invoices: NFe[]) {
     const doc = new jsPDF({
         orientation: 'landscape',
@@ -35,7 +46,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
         { label: 'FIRMA:', value: 'OSKAR H&M COMERCIO LTDA' },
         { label: 'C.N.P.J.:', value: '55.426.922/0001-57' },
         { label: 'INSCR. EST.:', value: '' },
-        { label: 'MÊS OU PERÍODO/ANO:', value: '12/2025' }
+        { label: 'MÊS OU PERÍODO/ANO:', value: '12/2025' } // Idealmente, isso seria dinâmico
     ];
 
     doc.setFontSize(8).setFont('helvetica', 'normal');
@@ -55,7 +66,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
         inv.numero,
         formatDate(inv.dataEmissao),
         inv.cfop,
-        'SP', // Placeholder, ideal seria extrair do XML se disponível
+        getUfFromDestinatario(inv),
         formatCurrency(inv.valorTotal),
         formatCurrency(inv.baseCalculoICMS),
         formatCurrency(inv.valorICMS),
@@ -80,6 +91,7 @@ export function generateSaidasPDF(invoices: NFe[]) {
         },
         columnStyles: {
             4: { halign: 'center' },
+            5: { halign: 'center' },
             6: { halign: 'right' },
             7: { halign: 'right' },
             8: { halign: 'right' },
@@ -88,12 +100,13 @@ export function generateSaidasPDF(invoices: NFe[]) {
         }
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 20;
+    let finalY = (doc as any).lastAutoTable.finalY;
 
     // --- RESUMO POR CFOP ---
+    finalY += 20;
     doc.setFontSize(9).setFont('helvetica', 'bold');
-    doc.text('RESUMO MENSAL DE OPERAÇÕES E PRESTAÇÃO POR CÓDIGO FISCAL', margin, yPos);
-    yPos += 15;
+    doc.text('RESUMO MENSAL DE OPERAÇÕES E PRESTAÇÃO POR CÓDIGO FISCAL', margin, finalY);
+    finalY += 15;
 
     const cfopSummary: { [key: number]: { valorContabil: number, baseCalculo: number, imposto: number } } = {};
     authorizedInvoices.forEach(inv => {
@@ -106,45 +119,62 @@ export function generateSaidasPDF(invoices: NFe[]) {
     });
 
     const cfopTableHead = [['CÓD. FISC.', 'VLR. CONTÁBIL', 'BASE CÁLC.', 'IMPOSTO', 'ISENTAS', 'OUTRAS']];
-    let cfopTableBody: any[] = [];
-    let totalContabil = 0, totalBase = 0, totalImposto = 0;
+    const cfopTableBody: any[] = [];
+    
+    const cfopGroups = {
+        '5000 - Saidas e/ou Prestação de serviços no estado': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('5')),
+        '6000 - Saidas e/ou Prestação de serviços de outros estados': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('6')),
+    };
 
-    Object.entries(cfopSummary).forEach(([cfop, values]) => {
-        cfopTableBody.push([
-            cfop,
-            formatCurrency(values.valorContabil),
-            formatCurrency(values.baseCalculo),
-            formatCurrency(values.imposto),
-            '0,00',
-            '0,00'
-        ]);
-        totalContabil += values.valorContabil;
-        totalBase += values.baseCalculo;
-        totalImposto += values.imposto;
-    });
+    let totalGeral = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
 
-    // Subtotal
-    cfopTableBody.push([
-        { content: 'SUB TOTAL', styles: { fontStyle: 'bold' } },
-        { content: formatCurrency(totalContabil), styles: { fontStyle: 'bold' } },
-        { content: formatCurrency(totalBase), styles: { fontStyle: 'bold' } },
-        { content: formatCurrency(totalImposto), styles: { fontStyle: 'bold' } },
-        { content: '0,00', styles: { fontStyle: 'bold' } },
-        { content: '0,00', styles: { fontStyle: 'bold' } }
-    ]);
+    for (const [groupTitle, groupItems] of Object.entries(cfopGroups)) {
+        if (groupItems.length > 0) {
+            cfopTableBody.push([{ content: groupTitle, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
+            let subTotal = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
+
+            groupItems.forEach(([cfop, values]) => {
+                cfopTableBody.push([
+                    cfop,
+                    formatCurrency(values.valorContabil),
+                    formatCurrency(values.baseCalculo),
+                    formatCurrency(values.imposto),
+                    '0,00',
+                    '0,00'
+                ]);
+                subTotal.valorContabil += values.valorContabil;
+                subTotal.baseCalculo += values.baseCalculo;
+                subTotal.imposto += values.imposto;
+            });
+
+            cfopTableBody.push([
+                { content: 'SUB TOTAL', styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(subTotal.valorContabil), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(subTotal.baseCalculo), styles: { fontStyle: 'bold' } },
+                { content: formatCurrency(subTotal.imposto), styles: { fontStyle: 'bold' } },
+                { content: '0,00', styles: { fontStyle: 'bold' } },
+                { content: '0,00', styles: { fontStyle: 'bold' } }
+            ]);
+
+            totalGeral.valorContabil += subTotal.valorContabil;
+            totalGeral.baseCalculo += subTotal.baseCalculo;
+            totalGeral.imposto += subTotal.imposto;
+        }
+    }
+
      // Total Geral
     cfopTableBody.push([
         { content: 'TOTAL', styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
-        { content: formatCurrency(totalContabil), styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
-        { content: formatCurrency(totalBase), styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
-        { content: formatCurrency(totalImposto), styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
+        { content: formatCurrency(totalGeral.valorContabil), styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
+        { content: formatCurrency(totalGeral.baseCalculo), styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
+        { content: formatCurrency(totalGeral.imposto), styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
         { content: '0,00', styles: { fontStyle: 'bold', fillColor: [230,230,230] } },
         { content: '0,00', styles: { fontStyle: 'bold', fillColor: [230,230,230] } }
     ]);
 
 
     doc.autoTable({
-        startY: yPos,
+        startY: finalY,
         head: cfopTableHead,
         body: cfopTableBody,
         theme: 'grid',
@@ -164,8 +194,69 @@ export function generateSaidasPDF(invoices: NFe[]) {
             3: { halign: 'right' },
             4: { halign: 'right' },
             5: { halign: 'right' },
+        },
+        didParseCell: function(data) {
+            // Para as linhas de título de grupo
+            if (typeof data.cell.raw === 'object' && data.cell.raw.colSpan) {
+                data.cell.styles.halign = 'left';
+            }
         }
     });
+
+    finalY = (doc as any).lastAutoTable.finalY;
+
+    // --- DEMONSTRATIVO POR ESTADO ---
+    finalY += 20;
+    doc.setFontSize(9).setFont('helvetica', 'bold');
+    doc.text('DEMONSTRATIVO POR ESTADO DE DESTINO DA MERCADORIA OU DA PRESTACAO DO SERVICO', margin, finalY);
+    finalY += 12;
+    doc.setFontSize(8).setFont('helvetica', 'normal');
+    doc.text('Operacoes realizadas com nao contribuintes', margin, finalY);
+    finalY += 15;
+
+    const ufSummary: { [key: string]: { valorContabil: number, baseCalculo: number, icmsFonte: number } } = {};
+     authorizedInvoices.forEach(inv => {
+        const uf = getUfFromDestinatario(inv);
+        if (!ufSummary[uf]) {
+            ufSummary[uf] = { valorContabil: 0, baseCalculo: 0, icmsFonte: 0 };
+        }
+        ufSummary[uf].valorContabil += inv.valorTotal;
+        ufSummary[uf].baseCalculo += inv.baseCalculoICMS;
+        // O campo icmsFonte não existe nos dados, usaremos 0
+    });
+
+    const ufTableHead = [['UF', 'Valor Contábil', 'Base de Cálculo', 'Outras', 'ICMS Fonte']];
+    const ufTableBody = Object.entries(ufSummary).map(([uf, values]) => [
+        uf,
+        formatCurrency(values.valorContabil),
+        formatCurrency(values.baseCalculo),
+        '0,00',
+        '0,00' // Placeholder para Icms Fonte
+    ]);
+
+    doc.autoTable({
+        startY: finalY,
+        head: ufTableHead,
+        body: ufTableBody,
+        theme: 'grid',
+        headStyles: {
+            fillColor: [230, 230, 230],
+            textColor: 40,
+            fontSize: 7,
+            halign: 'center'
+        },
+        styles: {
+            fontSize: 7,
+        },
+        columnStyles: {
+            0: { halign: 'center' },
+            1: { halign: 'right' },
+            2: { halign: 'right' },
+            3: { halign: 'right' },
+            4: { halign: 'right' },
+        }
+    });
+
 
     doc.save('livro-saida.pdf');
 }
