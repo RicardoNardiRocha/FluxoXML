@@ -89,7 +89,7 @@ export function processNFeXML(xmlText: string): ParseResult | null {
         ie: tagText(emit, "IE") ?? "N/A",
       },
       destinatario: {
-        nome: tagText(dest, "xNome") ?? "Não identificado",
+        nome: tagText(dest, "xNome") ?? "Consumidor Final",
         uf: tagText(enderDest, "UF") ?? "N/A",
       },
       cfop,

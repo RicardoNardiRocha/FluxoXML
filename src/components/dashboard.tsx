@@ -46,7 +46,7 @@ export function Dashboard() {
         }
       }
   
-      // Aplica cancelamentos a notas já existentes ou a serem adicionadas
+      // Aplica cancelamentos a notas que serão adicionadas
       for (const chave of cancelKeys) {
         const n = nfeById.get(chave);
         if (n) {
@@ -66,20 +66,10 @@ export function Dashboard() {
       setInvoices(prevInvoices => {
         const combined = new Map(prevInvoices.map(inv => [inv.id, inv]));
         newInvoices.forEach(inv => {
-            // Se o XML da nota for importado junto com o de cancelamento,
-            // o cancelamento é aplicado acima. Se a nota já existia e 
-            // só agora importamos o XML de cancelamento, precisamos atualizar.
-            const existing = combined.get(inv.id);
-            if (existing && cancelKeys.includes(inv.id)) {
-                existing.situacao = "Cancelada";
-                existing.valorTotal = 0;
-                existing.baseCalculoICMS = 0;
-                existing.valorICMS = 0;
-            } else {
-                 combined.set(inv.id, inv);
-            }
+             combined.set(inv.id, inv);
         });
-        // Também aplicar cancelamentos a notas que já estavam na lista
+
+        // Aplica cancelamentos a notas que já estavam na lista antes do upload
         cancelKeys.forEach(key => {
             const existing = combined.get(key);
             if (existing) {
