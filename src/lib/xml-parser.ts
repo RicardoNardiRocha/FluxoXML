@@ -1,108 +1,106 @@
 import type { NFe } from './data';
 
-function getTagValue(xml: Element | Document, tagName: string, namespace?: string): string | undefined {
-  const elements = namespace ? xml.getElementsByTagNameNS(namespace, tagName) : xml.getElementsByTagName(tagName);
-  return elements?.[0]?.textContent ?? undefined;
+const NFE_NS = "http://www.portalfiscal.inf.br/nfe";
+
+function firstEl(xml: Element | Document | null | undefined, tag: string, ns = NFE_NS): Element | undefined {
+  if (!xml) return undefined;
+  const list = xml.getElementsByTagNameNS(ns, tag);
+  return list && list.length ? (list[0] as Element) : undefined;
 }
 
-function getAttributeValue(xml: Element | Document, tagName:string, attribute: string, namespace?: string): string | undefined {
-    const elements = namespace ? xml.getElementsByTagNameNS(namespace, tagName) : xml.getElementsByTagName(tagName);
-    return elements?.[0]?.getAttribute(attribute) ?? undefined;
-  }
+function tagText(xml: Element | Document | null | undefined, tag: string, ns = NFE_NS): string | undefined {
+  return firstEl(xml, tag, ns)?.textContent ?? undefined;
+}
 
-export function processNFeXML(xmlText: string): NFe | null {
+function attr(xml: Element | Document | null | undefined, attribute: string): string | undefined {
+  return (xml as Element | undefined)?.getAttribute?.(attribute) ?? undefined;
+}
+
+function num(v: string | undefined, fallback = 0): number {
+  const n = v ? Number.parseFloat(v) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function int(v: string | undefined, fallback = 0): number {
+  const n = v ? Number.parseInt(v, 10) : NaN;
+  return Number.isFinite(n) ? n : fallback;
+}
+
+
+export type ParseResult =
+  | { kind: "nfe"; nfe: NFe }
+  | { kind: "cancelamento"; chave: string };
+
+export function processNFeXML(xmlText: string): ParseResult | null {
   try {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-    
-    const parserError = xmlDoc.querySelector('parsererror');
-    if (parserError) {
-      console.error("Erro de parse no XML:", parserError.textContent);
-      throw new Error("O arquivo XML fornecido é inválido ou mal formatado.");
+    const xmlDoc = new DOMParser().parseFromString(xmlText, "text/xml");
+    if (xmlDoc.querySelector("parsererror")) return null;
+
+    const infEvento = firstEl(xmlDoc, "infEvento");
+    const tpEvento = tagText(infEvento, "tpEvento");
+    const descEvento = tagText(firstEl(xmlDoc, "detEvento"), "descEvento")?.toLowerCase();
+
+    const isCancelEvent = tpEvento === "110111" || (descEvento?.includes("cancel") ?? false);
+    if (isCancelEvent) {
+      const cStatEv =
+        tagText(firstEl(firstEl(xmlDoc, "retEvento"), "infEvento"), "cStat") ??
+        tagText(infEvento, "cStat");
+
+      const chave = tagText(infEvento, "chNFe") ?? tagText(firstEl(xmlDoc, "infProt"), "chNFe");
+      if (!chave) return null;
+
+      if (cStatEv === "135" || cStatEv === "155" || cStatEv === "101" || cStatEv === "151") {
+        return { kind: "cancelamento", chave };
+      }
+
+      return null;
     }
 
-    const NFeNamespace = "http://www.portalfiscal.inf.br/nfe";
+    const nfeProc = xmlDoc.getElementsByTagNameNS(NFE_NS, "nfeProc")[0] ?? xmlDoc.getElementsByTagName("nfeProc")[0];
+    const nfeNode = xmlDoc.getElementsByTagNameNS(NFE_NS, "NFe")[0];
+    const rootEl = (nfeProc || nfeNode) as Element | undefined;
+    if (!rootEl) return null;
 
-    const nfeProc = xmlDoc.getElementsByTagName('nfeProc')[0];
-    const nfeNode = xmlDoc.getElementsByTagNameNS(NFeNamespace, 'NFe')[0];
+    const infNFe = firstEl(rootEl, "infNFe");
+    if (!infNFe) return null;
 
-    if (!nfeNode && !nfeProc) {
-        throw new Error("Estrutura de NF-e não encontrada no XML.");
-    }
-    
-    const rootEl = nfeProc || nfeNode;
-    const infNFe = rootEl.getElementsByTagNameNS(NFeNamespace, 'infNFe')[0];
-    if (!infNFe) {
-      throw new Error("Tag <infNFe> não encontrada no XML.");
-    }
+    const ide = firstEl(infNFe, "ide");
+    const emit = firstEl(infNFe, "emit");
+    const dest = firstEl(infNFe, "dest");
+    const enderDest = firstEl(dest, "enderDest");
 
-    const ide = infNFe.getElementsByTagNameNS(NFeNamespace, 'ide')[0];
-    const emit = infNFe.getElementsByTagNameNS(NFeNamespace, 'emit')[0];
-    const enderEmit = emit?.getElementsByTagNameNS(NFeNamespace, 'enderEmit')[0];
-    const dest = infNFe.getElementsByTagNameNS(NFeNamespace, 'dest')[0];
-    const enderDest = dest?.getElementsByTagNameNS(NFeNamespace, 'enderDest')[0];
-    const total = infNFe.getElementsByTagNameNS(NFeNamespace, 'total')[0];
-    const ICMSTot = total.getElementsByTagNameNS(NFeNamespace, 'ICMSTot')[0];
-    
-    const protNFe = rootEl.getElementsByTagNameNS(NFeNamespace, 'protNFe')[0];
-    const infProt = protNFe?.getElementsByTagNameNS(NFeNamespace, 'infProt')[0];
+    const total = firstEl(infNFe, "total");
+    const icmsTot = firstEl(total, "ICMSTot");
 
-    const id = infNFe.getAttribute('Id')?.replace('NFe', '') || `temp-${Math.random()}`;
+    const idAttr = attr(infNFe, "Id");
+    const chave = idAttr?.startsWith("NFe") ? idAttr.slice(3) : (tagText(firstEl(rootEl, "infProt"), "chNFe") ?? `temp-${Math.random()}`);
 
-    let situacao: 'Autorizada' | 'Cancelada' = 'Autorizada';
-    const cStat = infProt ? getTagValue(infProt, 'cStat', NFeNamespace) : undefined;
+    const det0 = firstEl(infNFe, "det");
+    const cfop = int(tagText(det0, "CFOP"));
 
-    // Cenário 1: Protocolo de Cancelamento (101) ou Evento de Cancelamento Registrado (135)
-    if (cStat === '101' || cStat === '135') { 
-        situacao = 'Cancelada';
-    } 
-    // Cenário 2: O XML é de um evento de cancelamento em si
-    else {
-        const evento = xmlDoc.getElementsByTagNameNS(NFeNamespace, 'evento');
-        for (let i = 0; i < evento.length; i++) {
-            const detEvento = evento[i].getElementsByTagNameNS(NFeNamespace, 'detEvento')[0];
-            if (detEvento?.getAttribute('descEvento')?.toLowerCase().includes('cancelamento')) {
-               const evCancStat = detEvento.getElementsByTagNameNS(NFeNamespace, 'cStat')[0]?.textContent;
-               if(evCancStat === '135' || evCancStat === '101') { 
-                situacao = 'Cancelada';
-                break;
-               }
-            }
-        }
-    }
-    
-    // Fallback: Se não for cancelada, mas o status não for 100 (Autorizado) ou 150 (Autorizado fora do prazo), loga um aviso.
-    if (situacao === 'Autorizada' && cStat !== '100' && cStat !== '150') { 
-       console.warn(`NF-e ${id} com status não esperado: ${cStat}. Tratada como Autorizada.`);
-    }
-
-    const isCanceled = situacao === 'Cancelada';
-
-    const nfeData: NFe = {
-      id: id,
-      numero: parseInt(getTagValue(ide, 'nNF', NFeNamespace) || '0', 10),
-      serie: parseInt(getTagValue(ide, 'serie', NFeNamespace) || '0', 10),
-      dataEmissao: getTagValue(ide, 'dhEmi', NFeNamespace) || new Date().toISOString(),
+    const nfe: NFe = {
+      id: chave,
+      numero: int(tagText(ide, "nNF")),
+      serie: int(tagText(ide, "serie")),
+      dataEmissao: tagText(ide, "dhEmi") ?? tagText(ide, "dEmi") ?? new Date().toISOString(),
       emitente: {
-        nome: getTagValue(emit, 'xNome', NFeNamespace) || 'Não identificado',
-        cnpj: getTagValue(emit, 'CNPJ', NFeNamespace) || 'N/A',
-        ie: getTagValue(emit, 'IE', NFeNamespace) || 'N/A',
+        nome: tagText(emit, "xNome") ?? "Não identificado",
+        cnpj: tagText(emit, "CNPJ") ?? "N/A",
+        ie: tagText(emit, "IE") ?? "N/A",
       },
       destinatario: {
-        nome: getTagValue(dest, 'xNome', NFeNamespace) || 'Não identificado',
-        uf: getTagValue(enderDest, 'UF', NFeNamespace) || 'N/A',
+        nome: tagText(dest, "xNome") ?? "Não identificado",
+        uf: tagText(enderDest, "UF") ?? "N/A",
       },
-      cfop: parseInt(getTagValue(infNFe.getElementsByTagNameNS(NFeNamespace, 'det')[0], 'CFOP', NFeNamespace) || '0', 10),
-      situacao: situacao,
-      valorTotal: isCanceled ? 0 : parseFloat(getTagValue(ICMSTot, 'vNF', NFeNamespace) || '0'),
-      baseCalculoICMS: isCanceled ? 0 : parseFloat(getTagValue(ICMSTot, 'vBC', NFeNamespace) || '0'),
-      valorICMS: isCanceled ? 0 : parseFloat(getTagValue(ICMSTot, 'vICMS', NFeNamespace) || '0'),
+      cfop,
+      situacao: "Autorizada",
+      valorTotal: num(tagText(icmsTot, "vNF")),
+      baseCalculoICMS: num(tagText(icmsTot, "vBC")),
+      valorICMS: num(tagText(icmsTot, "vICMS")),
     };
 
-    return nfeData;
-
-  } catch (e) {
-    console.error("Erro ao processar XML da NF-e:", e);
+    return { kind: "nfe", nfe };
+  } catch {
     return null;
   }
 }

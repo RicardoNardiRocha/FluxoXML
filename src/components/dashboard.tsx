@@ -20,59 +20,85 @@ export function Dashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // No longer fetching mock data, start with empty state
     setIsLoading(false);
   }, []);
 
   const handleFileUpload = async (files: File[]) => {
+    setIsLoading(true);
     toast({
       title: 'Processando arquivos...',
       description: 'Aguarde enquanto os arquivos XML são validados.',
     });
-    setIsLoading(true);
-
+  
     try {
-      const parsingPromises = files.map(file => {
-        return new Promise<NFe | null>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = async () => {
-            try {
-              const xmlText = reader.result as string;
-              const nfeData = processNFeXML(xmlText);
-              resolve(nfeData);
-            } catch (e) {
-              console.error(`Erro ao processar o arquivo ${file.name}:`, e);
-              resolve(null); // Resolve with null for failed files
-            }
-          };
-          reader.onerror = (error) => {
-            console.error(`Erro ao ler o arquivo ${file.name}:`, error);
-            reject(error);
-          };
-          reader.readAsText(file);
-        });
-      });
-
-      const results = await Promise.all(parsingPromises);
-      const newInvoices = results.filter(nfe => nfe !== null) as NFe[];
+      const nfeById = new Map<string, NFe>();
+      const cancelKeys: string[] = [];
+  
+      for (const file of files) {
+        const xmlText = await file.text();
+        const parsed = processNFeXML(xmlText);
+        if (!parsed) continue;
+  
+        if (parsed.kind === "nfe") {
+          nfeById.set(parsed.nfe.id, parsed.nfe);
+        } else if (parsed.kind === "cancelamento") {
+          cancelKeys.push(parsed.chave);
+        }
+      }
+  
+      // Aplica cancelamentos a notas já existentes ou a serem adicionadas
+      for (const chave of cancelKeys) {
+        const n = nfeById.get(chave);
+        if (n) {
+          n.situacao = "Cancelada";
+          n.valorTotal = 0;
+          n.baseCalculoICMS = 0;
+          n.valorICMS = 0;
+        }
+      }
       
+      const newInvoices = Array.from(nfeById.values());
+
       if (newInvoices.length === 0 && files.length > 0) {
         throw new Error("Nenhuma nota fiscal válida foi encontrada nos arquivos processados.");
       }
-
-      // Avoid duplicates based on invoice ID
+  
       setInvoices(prevInvoices => {
-        const existingIds = new Set(prevInvoices.map(inv => inv.id));
-        const uniqueNewInvoices = newInvoices.filter(inv => !existingIds.has(inv.id));
-        return [...prevInvoices, ...uniqueNewInvoices];
-      });
+        const combined = new Map(prevInvoices.map(inv => [inv.id, inv]));
+        newInvoices.forEach(inv => {
+            // Se o XML da nota for importado junto com o de cancelamento,
+            // o cancelamento é aplicado acima. Se a nota já existia e 
+            // só agora importamos o XML de cancelamento, precisamos atualizar.
+            const existing = combined.get(inv.id);
+            if (existing && cancelKeys.includes(inv.id)) {
+                existing.situacao = "Cancelada";
+                existing.valorTotal = 0;
+                existing.baseCalculoICMS = 0;
+                existing.valorICMS = 0;
+            } else {
+                 combined.set(inv.id, inv);
+            }
+        });
+        // Também aplicar cancelamentos a notas que já estavam na lista
+        cancelKeys.forEach(key => {
+            const existing = combined.get(key);
+            if (existing) {
+                existing.situacao = "Cancelada";
+                existing.valorTotal = 0;
+                existing.baseCalculoICMS = 0;
+                existing.valorICMS = 0;
+            }
+        });
 
+        return Array.from(combined.values());
+      });
+  
       toast({
         title: 'Importação Concluída!',
-        description: `${newInvoices.length} de ${files.length} arquivos processados com sucesso.`,
+        description: `Processamento de ${files.length} arquivos finalizado.`,
         variant: 'success',
       });
-
+  
     } catch (error: any) {
       toast({
         variant: 'destructive',

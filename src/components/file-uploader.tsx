@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 interface FileUploaderProps {
-  onUpload: (files: File[]) => void;
+  onUpload: (files: File[]) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -17,7 +17,7 @@ export function FileUploader({ onUpload, disabled }: FileUploaderProps) {
   const { toast } = useToast();
 
   const onDrop = useCallback(
-    (acceptedFiles: File[], fileRejections: FileRejection[]) => {
+    async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
       if (fileRejections.length > 0) {
         toast({
             variant: 'destructive',
@@ -27,13 +27,20 @@ export function FileUploader({ onUpload, disabled }: FileUploaderProps) {
         return;
       }
       
-      if (acceptedFiles.length > 0) {
-        setIsUploading(true);
-        try {
-          onUpload(acceptedFiles);
-        } finally {
-          setIsUploading(false);
-        }
+      if (acceptedFiles.length === 0) return;
+
+      setIsUploading(true);
+      try {
+        await onUpload(acceptedFiles);
+      } catch (err) {
+        console.error(err);
+        toast({
+            variant: "destructive",
+            title: "Falha ao processar",
+            description: "Não foi possível importar um ou mais XMLs.",
+        });
+      } finally {
+        setIsUploading(false);
       }
     },
     [onUpload, toast]
@@ -41,7 +48,12 @@ export function FileUploader({ onUpload, disabled }: FileUploaderProps) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'text/xml': ['.xml'] },
+    multiple: true,
+    accept: { 
+      'application/xml': ['.xml'],
+      'text/xml': ['.xml'],
+      'text/plain': ['.xml'],
+     },
     disabled: isUploading || disabled,
   });
 
