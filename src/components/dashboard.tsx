@@ -59,7 +59,7 @@ export function Dashboard() {
       
       const newInvoices = Array.from(nfeById.values());
 
-      if (newInvoices.length === 0 && files.length > 0) {
+      if (newInvoices.length === 0 && files.length > 0 && cancelKeys.length === 0) {
         throw new Error("Nenhuma nota fiscal válida foi encontrada nos arquivos processados.");
       }
   

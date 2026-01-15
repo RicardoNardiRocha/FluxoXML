@@ -83,7 +83,18 @@ export function generateSaidasPDF(invoices: NFe[]) {
     
     let valorContabilAcumulado = 0;
     const mainTableBody = invoices.map(inv => {
-        valorContabilAcumulado += inv.valorTotal;
+        if (inv.finalidade === 'Devolução') {
+            valorContabilAcumulado -= inv.valorTotal;
+        } else {
+            valorContabilAcumulado += inv.valorTotal;
+        }
+
+        let observacao = '';
+        if (inv.situacao === 'Cancelada') {
+            observacao = 'CANCELADA';
+        } else if (inv.finalidade === 'Devolução') {
+            observacao = 'DEVOLUÇÃO';
+        }
 
         return [
             'NFE',
@@ -98,12 +109,12 @@ export function generateSaidasPDF(invoices: NFe[]) {
             formatCurrency(inv.valorICMS),
             '0,00',
             '0,00',
-            inv.situacao === 'Cancelada' ? 'CANCELADA' : ''
+            observacao
         ];
     });
 
-    // Filtra apenas as autorizadas para os resumos
-    const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
+    // Filtra apenas as autorizadas e não devoluções para os resumos
+    const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada' && inv.finalidade !== 'Devolução');
     
     const styles = { fontSize: 6 };
     const headStyles = { fillColor: [230, 230, 230], textColor: 40, fontSize: 6, halign: 'center' };

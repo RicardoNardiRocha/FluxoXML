@@ -14,6 +14,7 @@ export type NFe = {
   };
   cfop: number;
   situacao: 'Autorizada' | 'Cancelada';
+  finalidade: 'Normal' | 'Devolução';
   valorTotal: number;
   baseCalculoICMS: number;
   valorICMS: number;

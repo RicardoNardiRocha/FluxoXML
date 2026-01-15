@@ -77,6 +77,9 @@ export function processNFeXML(xmlText: string): ParseResult | null {
 
     const det0 = firstEl(infNFe, "det");
     const cfop = int(tagText(det0, "CFOP"));
+    
+    const finNFe = tagText(ide, 'finNFe');
+    const isDevolucao = finNFe === '4';
 
     const nfe: NFe = {
       id: chave,
@@ -94,6 +97,7 @@ export function processNFeXML(xmlText: string): ParseResult | null {
       },
       cfop,
       situacao: "Autorizada",
+      finalidade: isDevolucao ? 'Devolução' : 'Normal',
       valorTotal: num(tagText(icmsTot, "vNF")),
       baseCalculoICMS: num(tagText(icmsTot, "vBC")),
       valorICMS: num(tagText(icmsTot, "vICMS")),
