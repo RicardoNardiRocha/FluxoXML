@@ -79,14 +79,22 @@ export function generateSaidasPDF(invoices: NFe[]) {
         doc.text(`Folha: ${data.pageNumber}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left' });
     };
 
+    const isRemessaCFOP = (cfop: number): boolean => {
+        return (cfop >= 5900 && cfop <= 5999) || (cfop >= 6900 && cfop <= 6999);
+    };
+
     const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor da Nota', 'Valor Contábil Acum.', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
     
     let valorContabilAcumulado = 0;
     const mainTableBody = invoices.map(inv => {
-        if (inv.finalidade === 'Devolução') {
-            valorContabilAcumulado -= inv.valorTotal;
-        } else {
-            valorContabilAcumulado += inv.valorTotal;
+        const isRemessa = isRemessaCFOP(inv.cfop);
+
+        if (!isRemessa) {
+            if (inv.finalidade === 'Devolução') {
+                valorContabilAcumulado -= inv.valorTotal;
+            } else {
+                valorContabilAcumulado += inv.valorTotal;
+            }
         }
 
         let observacao = '';
@@ -94,6 +102,8 @@ export function generateSaidasPDF(invoices: NFe[]) {
             observacao = 'CANCELADA';
         } else if (inv.finalidade === 'Devolução') {
             observacao = 'DEVOLUÇÃO';
+        } else if (isRemessa) {
+            observacao = 'REMESSA';
         }
 
         return [
