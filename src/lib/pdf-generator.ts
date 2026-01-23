@@ -309,6 +309,7 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         doc.text(newText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
     }
 
-    const filename = monthYear ? `livro-saida-${monthYear}.pdf` : 'livro-saida.pdf';
+    const emitterCnpj = invoices[0].emitente.cnpj.replace(/\D/g, '');
+    const filename = monthYear ? `livro-saida-${emitterCnpj}-${monthYear}.pdf` : `livro-saida-${emitterCnpj}.pdf`;
     doc.save(filename);
 }
