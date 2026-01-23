@@ -9,7 +9,7 @@ import {
   SidebarMenuButton,
   SidebarProvider,
 } from '@/components/ui/sidebar';
-import { FileText, Home as HomeIcon, Settings } from 'lucide-react';
+import { FileText, LogIn, LogOut } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -24,6 +24,20 @@ export default function HomePage() {
           </div>
         </SidebarHeader>
         <SidebarContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton isActive tooltip="Livro de Saída">
+                <LogOut />
+                <span>Livro de Saída</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Livro de Entrada">
+                <LogIn />
+                <span>Livro de Entrada</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarContent>
       </Sidebar>
       <SidebarInset>
