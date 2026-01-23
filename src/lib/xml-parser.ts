@@ -66,6 +66,7 @@ export function processNFeXML(xmlText: string): ParseResult | null {
 
     const ide = firstEl(infNFe, "ide");
     const emit = firstEl(infNFe, "emit");
+    const enderEmit = firstEl(emit, "enderEmit");
     const dest = firstEl(infNFe, "dest");
     const enderDest = firstEl(dest, "enderDest");
 
@@ -90,6 +91,7 @@ export function processNFeXML(xmlText: string): ParseResult | null {
         nome: tagText(emit, "xNome") ?? "Não identificado",
         cnpj: tagText(emit, "CNPJ") ?? "N/A",
         ie: tagText(emit, "IE") ?? "N/A",
+        uf: tagText(enderEmit, "UF") ?? "N/A",
       },
       destinatario: {
         nome: tagText(dest, "xNome") ?? "Consumidor Final",

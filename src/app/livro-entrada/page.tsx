@@ -1,4 +1,4 @@
-import { Dashboard } from '@/components/dashboard';
+import { DashboardEntrada } from '@/components/dashboard-entrada';
 import {
   Sidebar,
   SidebarContent,
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sidebar';
 import { FileText, LogIn, LogOut } from 'lucide-react';
 
-export default function HomePage() {
+export default function LivroEntradaPage() {
   return (
     <SidebarProvider>
       <Sidebar>
@@ -27,7 +27,7 @@ export default function HomePage() {
           <SidebarMenu>
             <SidebarMenuItem>
               <a href="/">
-                <SidebarMenuButton isActive tooltip="Livro de Saída">
+                <SidebarMenuButton tooltip="Livro de Saída">
                   <LogOut />
                   <span>Livro de Saída</span>
                 </SidebarMenuButton>
@@ -35,7 +35,7 @@ export default function HomePage() {
             </SidebarMenuItem>
             <SidebarMenuItem>
               <a href="/livro-entrada">
-                <SidebarMenuButton tooltip="Livro de Entrada">
+                <SidebarMenuButton isActive tooltip="Livro de Entrada">
                   <LogIn />
                   <span>Livro de Entrada</span>
                 </SidebarMenuButton>
@@ -47,14 +47,14 @@ export default function HomePage() {
       <SidebarInset>
         <header className="flex h-20 items-center justify-between border-b bg-background/50 px-6 backdrop-blur-sm sticky top-0 z-10">
           <div>
-            <h2 className="text-xl font-semibold">Livro de Saída</h2>
+            <h2 className="text-xl font-semibold">Livro de Entrada</h2>
             <p className="text-sm text-muted-foreground">
-              Visualize e gerencie suas notas fiscais de saída.
+              Visualize e gerencie suas notas fiscais de entrada.
             </p>
           </div>
         </header>
         <main className="flex-1 space-y-6 p-6">
-          <Dashboard />
+          <DashboardEntrada />
         </main>
       </SidebarInset>
     </SidebarProvider>

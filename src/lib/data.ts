@@ -7,6 +7,7 @@ export type NFe = {
     nome: string;
     cnpj: string;
     ie: string;
+    uf?: string;
   };
   destinatario: {
     nome: string;
