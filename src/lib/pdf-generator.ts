@@ -309,7 +309,10 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         doc.text(newText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
     }
 
-    const emitterCnpj = invoices[0].emitente.cnpj.replace(/\D/g, '');
-    const filename = monthYear ? `livro-saida-${emitterCnpj}-${monthYear}.pdf` : `livro-saida-${emitterCnpj}.pdf`;
+    const emitterName = invoices[0].emitente.nome
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+    const filename = monthYear ? `livro-saida-${emitterName}-${monthYear}.pdf` : `livro-saida-${emitterName}.pdf`;
     doc.save(filename);
 }
