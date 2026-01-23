@@ -78,17 +78,35 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     }
 
     try {
-      generateSaidasPDF(invoices);
-       toast({
+      const invoicesByMonth = invoices.reduce((acc, invoice) => {
+        const monthYear = invoice.dataEmissao.substring(0, 7); // YYYY-MM
+        if (!acc[monthYear]) {
+          acc[monthYear] = [];
+        }
+        acc[monthYear].push(invoice);
+        return acc;
+      }, {} as Record<string, NFe[]>);
+
+      const months = Object.keys(invoicesByMonth);
+
+      months.forEach(monthYear => {
+        const monthInvoices = invoicesByMonth[monthYear];
+        // Sort invoices by date to ensure correct accumulated value calculation
+        monthInvoices.sort((a, b) => new Date(a.dataEmissao).getTime() - new Date(b.dataEmissao).getTime());
+        generateSaidasPDF(monthInvoices, monthYear);
+      });
+
+      toast({
         title: 'Exportação Concluída!',
-        description: `O arquivo 'livro-saida.pdf' foi gerado com sucesso.`,
+        description: `Foram gerados ${months.length} arquivo(s) PDF, um para cada mês.`,
         variant: 'success',
       });
+
     } catch (error) {
         toast({
             variant: 'destructive',
             title: 'Falha na Exportação',
-            description: 'Ocorreu um erro ao gerar o arquivo PDF.',
+            description: 'Ocorreu um erro ao gerar o(s) arquivo(s) PDF.',
         });
     }
   };

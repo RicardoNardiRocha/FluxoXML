@@ -28,7 +28,7 @@ function getUfFromDestinatario(invoice: NFe): string {
     return invoice.destinatario.uf || 'SP';
 }
 
-export function generateSaidasPDF(invoices: NFe[]) {
+export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
     if (invoices.length === 0) {
         // Early return if there's nothing to process
         console.warn("generateSaidasPDF called with no invoices.");
@@ -309,5 +309,6 @@ export function generateSaidasPDF(invoices: NFe[]) {
         doc.text(newText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
     }
 
-    doc.save('livro-saida.pdf');
+    const filename = monthYear ? `livro-saida-${monthYear}.pdf` : 'livro-saida.pdf';
+    doc.save(filename);
 }
