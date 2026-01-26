@@ -90,6 +90,7 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         const isRemessa = isRemessaCFOP(inv.cfop);
 
         if (!isRemessa) {
+            // Devoluções de compra (são notas de saída) anulam uma entrada, então subtraem do valor contábil.
             if (inv.finalidade === 'Devolução') {
                 valorContabilAcumulado -= inv.valorTotal;
             } else {
@@ -123,8 +124,8 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         ];
     });
 
-    // Filtra apenas as autorizadas e não devoluções para os resumos
-    const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada' && inv.finalidade !== 'Devolução');
+    // Filtra apenas as autorizadas para os resumos
+    const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
     
     const styles = { fontSize: 6 };
     const headStyles = { fillColor: [230, 230, 230], textColor: 40, fontSize: 6, halign: 'center' };
@@ -191,6 +192,7 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
     const cfopGroups = {
         '5000 - Saidas e/ou Prestação de serviços no estado': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('5')),
         '6000 - Saidas e/ou Prestação de serviços de outros estados': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('6')),
+        '7000 - Saidas e/ou Prestação de serviços para o exterior': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('7')),
     };
 
     let totalGeralCfop = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
