@@ -152,16 +152,44 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         columnStyles: columnStyles,
         footStyles: boldStyle,
         didDrawPage: addHeaderAndFooterToPage,
-        willDrawCell: (data) => {
-            if (typeof data.cell.raw === 'object' && data.cell.raw.colSpan) {
-                if(data.cell.raw.styles.halign === 'left') {
-                    data.cell.styles.halign = 'left';
-                }
-            }
-        },
     });
 
     let finalY = doc.lastAutoTable.finalY;
+
+    // --- TOTALIZADORES GERAIS ---
+    finalY += 20;
+    if (finalY > doc.internal.pageSize.getHeight() - 100) {
+        doc.addPage();
+        addHeaderAndFooterToPage({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { top: 0 } } });
+        finalY = 100;
+    }
+
+    doc.setFontSize(9).setFont('helvetica', 'bold');
+    doc.text('RESUMO DOS TOTALIZADORES', margin, finalY);
+    finalY += 15;
+
+    const totalProcessadas = invoices.length;
+    const totalAutorizadas = invoices.filter(inv => inv.situacao === 'Autorizada').length;
+    const totalCanceladas = invoices.filter(inv => inv.situacao === 'Cancelada').length;
+    const totalDevolucoes = authorizedInvoices.filter(inv => inv.finalidade === 'Devolução').length;
+
+    const summaryData = [
+        ['Total de Notas Processadas:', totalProcessadas.toString()],
+        ['Total de Notas Autorizadas:', totalAutorizadas.toString()],
+        ['Total de Notas Canceladas:', totalCanceladas.toString()],
+        ['Total de Devoluções (Compra):', totalDevolucoes.toString()],
+    ];
+
+    doc.autoTable({
+        startY: finalY,
+        body: summaryData,
+        theme: 'plain',
+        styles: { fontSize: 8 },
+        columnStyles: { 0: { fontStyle: 'bold' } }
+    });
+
+    finalY = doc.lastAutoTable.finalY;
+
 
     // --- RESUMO POR CFOP ---
     finalY += 20;
