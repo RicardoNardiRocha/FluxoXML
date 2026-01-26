@@ -80,7 +80,15 @@ export function Dashboard() {
             }
         });
 
-        return Array.from(combined.values());
+        const allInvoices = Array.from(combined.values());
+        
+        // Filtrar apenas notas de SAÍDA (CFOPs iniciados em 5, 6 ou 7)
+        const exitInvoices = allInvoices.filter(inv => {
+            const cfopStr = String(inv.cfop);
+            return cfopStr.startsWith('5') || cfopStr.startsWith('6') || cfopStr.startsWith('7');
+        });
+
+        return exitInvoices;
       });
   
       toast({

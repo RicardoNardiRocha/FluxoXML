@@ -80,7 +80,15 @@ export function DashboardEntrada() {
             }
         });
 
-        return Array.from(combined.values());
+        const allInvoices = Array.from(combined.values());
+
+        // Filtrar apenas notas de ENTRADA (CFOPs iniciados em 1, 2 ou 3)
+        const entryInvoices = allInvoices.filter(inv => {
+            const cfopStr = String(inv.cfop);
+            return cfopStr.startsWith('1') || cfopStr.startsWith('2') || cfopStr.startsWith('3');
+        });
+
+        return entryInvoices;
       });
   
       toast({
