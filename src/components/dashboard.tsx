@@ -15,7 +15,8 @@ export function Dashboard() {
   const [filters, setFilters] = useState<Filters>({
     client: '',
     status: 'all',
-    dateRange: { from: undefined, to: undefined },
+    month: undefined,
+    cfop: '',
   });
   const { toast } = useToast();
 
@@ -103,18 +104,21 @@ export function Dashboard() {
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
-      const { client, status, dateRange } = filters;
+      const { client, status, month, cfop } = filters;
       const invoiceDate = new Date(invoice.dataEmissao);
 
       const clientMatch = client
         ? invoice.destinatario.nome.toLowerCase().includes(client.toLowerCase())
         : true;
       const statusMatch = status !== 'all' ? invoice.situacao === status : true;
-      const dateMatch =
-        (dateRange.from ? invoiceDate >= dateRange.from : true) &&
-        (dateRange.to ? invoiceDate <= dateRange.to : true);
+      
+      const monthMatch = month
+        ? invoiceDate.getFullYear() === month.getFullYear() && invoiceDate.getMonth() === month.getMonth()
+        : true;
 
-      return clientMatch && statusMatch && dateMatch;
+      const cfopMatch = cfop ? invoice.cfop.toString().startsWith(cfop) : true;
+
+      return clientMatch && statusMatch && monthMatch && cfopMatch;
     });
   }, [invoices, filters]);
 

@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
 import { cn } from '@/lib/utils';
@@ -22,7 +21,8 @@ import { ptBR } from 'date-fns/locale';
 export interface Filters {
   client: string;
   status: 'all' | 'Autorizada' | 'Cancelada';
-  dateRange: DateRange;
+  month?: Date;
+  cfop: string;
 }
 
 interface FilterControlsProps {
@@ -39,7 +39,8 @@ export function FilterControls({
     onFilterChange({
         client: '',
         status: 'all',
-        dateRange: { from: undefined, to: undefined },
+        month: undefined,
+        cfop: '',
     });
   }
 
@@ -52,7 +53,7 @@ export function FilterControls({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="client-filter">Cliente / Fornecedor</Label>
             <Input
@@ -61,6 +62,17 @@ export function FilterControls({
               value={filters.client}
               onChange={(e) =>
                 onFilterChange({ ...filters, client: e.target.value })
+              }
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cfop-filter">CFOP</Label>
+            <Input
+              id="cfop-filter"
+              placeholder="Ex: 5102"
+              value={filters.cfop}
+              onChange={(e) =>
+                onFilterChange({ ...filters, cfop: e.target.value })
               }
             />
           </div>
@@ -84,38 +96,31 @@ export function FilterControls({
           </div>
         </div>
         <div className="space-y-2">
-          <Label>Período de Emissão</Label>
+          <Label>Mês de Emissão</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
                   'w-full justify-start text-left font-normal',
-                  !filters.dateRange.from && 'text-muted-foreground'
+                  !filters.month && 'text-muted-foreground'
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {filters.dateRange.from ? (
-                  filters.dateRange.to ? (
-                    <>
-                      {format(filters.dateRange.from, 'dd/MM/yyyy', { locale: ptBR })} -{' '}
-                      {format(filters.dateRange.to, 'dd/MM/yyyy', { locale: ptBR })}
-                    </>
-                  ) : (
-                    format(filters.dateRange.from, 'dd/MM/yyyy', { locale: ptBR })
-                  )
+                {filters.month ? (
+                    format(filters.month, "MMMM 'de' yyyy", { locale: ptBR })
                 ) : (
-                  <span>Selecione um período</span>
+                  <span>Selecione um mês</span>
                 )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
-                mode="range"
-                selected={filters.dateRange}
-                onSelect={(range) => onFilterChange({ ...filters, dateRange: range || {} })}
-                numberOfMonths={2}
+                mode="single"
+                selected={filters.month}
+                onSelect={(date) => onFilterChange({ ...filters, month: date })}
                 locale={ptBR}
+                initialFocus
               />
             </PopoverContent>
           </Popover>
