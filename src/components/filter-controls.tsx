@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar as CalendarIcon, Filter, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Filter, RefreshCw, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Calendar } from './ui/calendar';
 import { cn } from '@/lib/utils';
@@ -28,14 +28,16 @@ export interface Filters {
 interface FilterControlsProps {
   filters: Filters;
   onFilterChange: (filters: Filters) => void;
+  onClearAll?: () => void;
 }
 
 export function FilterControls({
   filters,
   onFilterChange,
+  onClearAll,
 }: FilterControlsProps) {
 
-  const handleReset = () => {
+  const handleResetFilters = () => {
     onFilterChange({
         client: '',
         status: 'all',
@@ -125,11 +127,17 @@ export function FilterControls({
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex justify-end pt-2">
-          <Button variant="ghost" onClick={handleReset}>
+        <div className="flex justify-end pt-2 gap-2">
+          <Button variant="ghost" onClick={handleResetFilters}>
             <X className="mr-2 h-4 w-4" />
             Limpar Filtros
           </Button>
+           {onClearAll && (
+            <Button variant="outline" onClick={onClearAll}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Limpar e Reiniciar
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -101,6 +101,21 @@ export function Dashboard() {
     }
   };
 
+  const handleClearAll = () => {
+    setInvoices([]);
+    setFilters({
+      client: '',
+      status: 'all',
+      month: undefined,
+      cfop: '',
+    });
+    toast({
+        title: 'Tudo limpo!',
+        description: 'Você pode iniciar uma nova importação de arquivos XML.',
+        variant: 'success',
+    });
+  };
+
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
@@ -130,7 +145,11 @@ export function Dashboard() {
             <FileUploader onUpload={handleFileUpload} disabled={isLoading}/>
         </div>
         <div className="lg:col-span-2">
-             <FilterControls filters={filters} onFilterChange={setFilters} />
+             <FilterControls 
+                filters={filters} 
+                onFilterChange={setFilters} 
+                onClearAll={handleClearAll}
+              />
         </div>
       </div>
      
