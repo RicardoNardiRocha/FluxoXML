@@ -66,6 +66,19 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
       setCurrentPage(currentPage - 1);
     }
   };
+  
+  const getPaginationRange = (): (number | '...')[] => {
+    if (totalPages <= 7) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (currentPage <= 4) {
+        return [1, 2, 3, 4, 5, '...', totalPages];
+    }
+    if (currentPage > totalPages - 4) {
+        return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+  };
 
   const handleExport = () => {
     if (invoices.length === 0) {
@@ -209,29 +222,49 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
          <div className="text-sm text-muted-foreground">
           {invoices.length > 0 ? `Exibindo ${paginatedInvoices.length} de ${invoices.length} notas.` : 'Nenhuma nota para exibir.'}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrevPage}
-            disabled={currentPage === 1 || isLoading}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Anterior
-          </Button>
-          <span className="text-sm font-medium">
-            Página {totalPages > 0 ? currentPage : 0} de {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNextPage}
-            disabled={currentPage === totalPages || isLoading}
-          >
-            Próximo
-            <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        </div>
+        {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={currentPage === 1 || isLoading}
+            >
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Anterior
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {getPaginationRange().map((page, index) => {
+                if (page === '...') {
+                  return <span key={index} className="flex h-9 w-9 items-center justify-center">...</span>;
+                }
+                return (
+                  <Button
+                    key={index}
+                    variant={currentPage === page ? "default" : "outline"}
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => setCurrentPage(page as number)}
+                    disabled={isLoading}
+                  >
+                    {page}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages || isLoading}
+            >
+                Próximo
+                <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+            </div>
+        )}
       </CardFooter>
     </Card>
   );
