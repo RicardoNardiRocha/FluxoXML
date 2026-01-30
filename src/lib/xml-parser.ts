@@ -4,24 +4,14 @@ const NFE_NS = "http://www.portalfiscal.inf.br/nfe";
 
 function firstEl(xml: Element | Document | null | undefined, tag: string, ns = NFE_NS): Element | undefined {
   if (!xml) return undefined;
-
-  const listNS = (xml as any).getElementsByTagNameNS?.(ns, tag) as HTMLCollectionOf<Element> | undefined;
-  if (listNS && listNS.length) return listNS[0] as Element;
-
-  const list = (xml as any).getElementsByTagName?.(tag) as HTMLCollectionOf<Element> | undefined;
-  if (list && list.length) return list[0] as Element;
-
-  return undefined;
+  const list = xml.getElementsByTagNameNS?.(ns, tag);
+  return list?.[0];
 }
 
 function allEls(xml: Element | Document | null | undefined, tag: string, ns = NFE_NS): Element[] {
   if (!xml) return [];
-
-  const listNS = (xml as any).getElementsByTagNameNS?.(ns, tag) as HTMLCollectionOf<Element> | undefined;
-  if (listNS && listNS.length) return Array.from(listNS);
-
-  const list = (xml as any).getElementsByTagName?.(tag) as HTMLCollectionOf<Element> | undefined;
-  return list && list.length ? Array.from(list) : [];
+  const list = xml.getElementsByTagNameNS?.(ns, tag);
+  return list ? Array.from(list) : [];
 }
 
 function tagText(xml: Element | Document | null | undefined, tag: string, ns = NFE_NS): string | undefined {
@@ -75,7 +65,8 @@ export function processNFeXML(
     // =========================
     const infEvento = firstEl(xmlDoc, "infEvento");
     const tpEvento = tagText(infEvento, "tpEvento");
-    const descEvento = tagText(firstEl(xmlDoc, "detEvento"), "descEvento")?.toLowerCase();
+    const detEvento = firstEl(infEvento, "detEvento");
+    const descEvento = tagText(detEvento, "descEvento")?.toLowerCase();
 
     const isCancelEvent = tpEvento === "110111" || (descEvento?.includes("cancel") ?? false);
     if (isCancelEvent) {
@@ -136,7 +127,7 @@ export function processNFeXML(
     let perspectiva: ParseMeta["perspectiva"] = "terceiro";
     let empresaDoc: string | undefined;
 
-    if (companySet.size) {
+    if (companySet.size > 0) {
       if (destCNPJ && companySet.has(destCNPJ)) {
         perspectiva = "entrada";
         empresaDoc = destCNPJ;
@@ -150,7 +141,12 @@ export function processNFeXML(
       } else {
         perspectiva = "terceiro";
       }
+    } else {
+      // Se nenhuma empresa foi definida, a perspectiva é indeterminada, mas
+      // para evitar ignorar tudo, podemos tratar baseado no tipo da nota
+      perspectiva = tpNF === '1' ? 'saida' : 'entrada';
     }
+
 
     // CFOP por item (não só primeiro det)
     const dets = allEls(infNFe, "det");
@@ -180,7 +176,7 @@ export function processNFeXML(
     const isDevolucao =
       finNFe === "4" ||
       natOp.includes("devolu") ||
-      cfops.some((c) => c === 1202 || c === 2202);
+      cfops.some((c) => c === 1202 || c === 2202 || c === 5202 || c === 6202);
 
     const nfe: NFe = {
       id: chave,
