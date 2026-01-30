@@ -15,7 +15,9 @@ export type NFe = {
   };
   destinatario: {
     nome: string;
-    uf?: string; // Adicionado campo UF
+    cnpj?: string;
+    ie?: string;
+    uf?: string;
   };
   cfop: number;
   situacao: 'Autorizada' | 'Cancelada';

@@ -50,14 +50,8 @@ export function generateBookPDF(
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
 
-    const company = isSaida ? invoices[0].emitente : {
-        ...invoices[0].destinatario,
-        cnpj: "N/A (não consta no XML)", // CNPJ do destinatário não é obrigatório no XML
-        ie: "N/A (não consta no XML)",   // IE do destinatário não é obrigatório no XML
-    };
+    const myCompany = isSaida ? invoices[0].emitente : invoices[0].destinatario;
     
-    const subjectCompany = isSaida ? invoices[0].emitente : invoices[0].destinatario;
-
     const periodDate = new Date(invoices[0].dataEmissao);
     const period = `${(periodDate.getMonth() + 1).toString().padStart(2, '0')}/${periodDate.getFullYear()}`;
 
@@ -66,9 +60,9 @@ export function generateBookPDF(
         doc.text(isSaida ? 'REGISTRO DE SAÍDAS' : 'REGISTRO DE ENTRADAS', pageWidth / 2, margin + 10, { align: 'center' });
 
         const headerInfo = [
-            { label: 'FIRMA:', value: company.nome },
-            { label: 'C.N.P.J.:', value: company.cnpj },
-            { label: 'INSCR. EST.:', value: company.ie },
+            { label: 'FIRMA:', value: myCompany.nome },
+            { label: 'C.N.P.J.:', value: myCompany.cnpj || "N/A" },
+            { label: 'INSCR. EST.:', value: myCompany.ie || "N/A" },
             { label: 'MÊS OU PERÍODO/ANO:', value: period }
         ];
 
@@ -358,7 +352,7 @@ export function generateBookPDF(
         doc.text(newText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
     }
 
-    const companyNameForFile = subjectCompany.nome
+    const companyNameForFile = myCompany.nome
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '');

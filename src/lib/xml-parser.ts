@@ -199,6 +199,8 @@ export function processNFeXML(
       },
       destinatario: {
         nome: tagText(dest, "xNome") ?? "Consumidor Final",
+        cnpj: tagText(dest, "CNPJ") ?? tagText(dest, "CPF") ?? undefined,
+        ie: tagText(dest, "IE") ?? undefined,
         uf: tagText(enderDest, "UF") ?? "N/A",
       },
       cfop: int(cfopPrincipal),
