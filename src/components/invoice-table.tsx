@@ -23,7 +23,7 @@ import { useState } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { generateSaidasPDF } from '@/lib/pdf-generator';
+import { generateBookPDF } from '@/lib/pdf-generator';
 
 
 interface InvoiceTableProps {
@@ -106,7 +106,7 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
         const monthInvoices = invoicesByMonth[monthYear];
         // Sort invoices by date to ensure correct accumulated value calculation
         monthInvoices.sort((a, b) => new Date(a.dataEmissao).getTime() - new Date(b.dataEmissao).getTime());
-        generateSaidasPDF(monthInvoices, monthYear);
+        generateBookPDF(monthInvoices, { type: 'saida', monthYear });
       });
 
       toast({

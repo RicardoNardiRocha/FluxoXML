@@ -1,4 +1,3 @@
-
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import type { NFe } from './data';
@@ -23,17 +22,24 @@ const formatDate = (dateString: string) => {
     return new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000).toLocaleDateString('pt-BR');
 };
 
-
-function getUfFromDestinatario(invoice: NFe): string {
-    return invoice.destinatario.uf || 'SP';
+function getUf(invoice: NFe, type: 'saida' | 'entrada'): string {
+    if (type === 'saida') {
+        return invoice.destinatario.uf || 'SP';
+    }
+    return invoice.emitente.uf || 'SP';
 }
 
-export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
+export function generateBookPDF(
+    invoices: NFe[],
+    options: { type: 'saida' | 'entrada', monthYear?: string }
+) {
     if (invoices.length === 0) {
-        // Early return if there's nothing to process
-        console.warn("generateSaidasPDF called with no invoices.");
+        console.warn("generateBookPDF called with no invoices.");
         return;
     }
+
+    const { type, monthYear } = options;
+    const isSaida = type === 'saida';
 
     const doc = new jsPDF({
         orientation: 'landscape',
@@ -43,23 +49,24 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
+
+    const company = isSaida ? invoices[0].emitente : {
+        ...invoices[0].destinatario,
+        cnpj: "N/A (não consta no XML)", // CNPJ do destinatário não é obrigatório no XML
+        ie: "N/A (não consta no XML)",   // IE do destinatário não é obrigatório no XML
+    };
     
-    // Pega os dados do emissor da primeira nota (assume que todas são do mesmo emissor)
-    const emitter = invoices[0].emitente;
     const periodDate = new Date(invoices[0].dataEmissao);
     const period = `${(periodDate.getMonth() + 1).toString().padStart(2, '0')}/${periodDate.getFullYear()}`;
 
-
-    // Função para adicionar cabeçalho e rodapé em uma página específica
     const addHeaderAndFooterToPage = (data: { pageNumber: number, settings: { margin: { top: number } } }) => {
-        // --- CABEÇALHO ---
         doc.setFontSize(14).setFont('helvetica', 'bold');
-        doc.text('REGISTRO DE SAÍDAS', pageWidth / 2, margin + 10, { align: 'center' });
+        doc.text(isSaida ? 'REGISTRO DE SAÍDAS' : 'REGISTRO DE ENTRADAS', pageWidth / 2, margin + 10, { align: 'center' });
 
         const headerInfo = [
-            { label: 'FIRMA:', value: emitter.nome },
-            { label: 'C.N.P.J.:', value: emitter.cnpj },
-            { label: 'INSCR. EST.:', value: emitter.ie },
+            { label: 'FIRMA:', value: company.nome },
+            { label: 'C.N.P.J.:', value: company.cnpj },
+            { label: 'INSCR. EST.:', value: company.ie },
             { label: 'MÊS OU PERÍODO/ANO:', value: period }
         ];
 
@@ -72,15 +79,17 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
 
         data.settings.margin.top = yPos;
         
-        // --- RODAPÉ (Numeração de página) ---
         doc.setFontSize(8);
-        const pageNumberText = `Página ${data.pageNumber} de {totalPages}`; // Placeholder
+        const pageNumberText = `Página ${data.pageNumber} de {totalPages}`;
         doc.text(pageNumberText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
         doc.text(`Folha: ${data.pageNumber}`, margin, doc.internal.pageSize.getHeight() - 10, { align: 'left' });
     };
 
     const isRemessaCFOP = (cfop: number): boolean => {
-        return (cfop >= 5900 && cfop <= 5999) || (cfop >= 6900 && cfop <= 6999);
+        const firstDigit = Math.floor(cfop / 1000);
+        const lastThree = cfop % 1000;
+        return (firstDigit === 5 && lastThree >= 900) || (firstDigit === 6 && lastThree >= 900) ||
+               (firstDigit === 1 && lastThree >= 900) || (firstDigit === 2 && lastThree >= 900);
     };
 
     const mainTableHead = [['Espécie', 'Série/Subs.', 'Número', 'Dia', 'CFOP', 'UF', 'Valor da Nota', 'Valor Contábil Acum.', 'Base de Cálculo', 'ICMS', 'Isentas/N.Trib.', 'Outras', 'Observações']];
@@ -90,8 +99,8 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         const isRemessa = isRemessaCFOP(inv.cfop);
 
         if (!isRemessa) {
-            // Devoluções de compra (são notas de saída) anulam uma entrada, então subtraem do valor contábil.
-            if (inv.finalidade === 'Devolução') {
+            if (isSaida && inv.finalidade === 'Devolução') {
+                // Devolução de compra (saída) anula uma entrada, subtrai do valor contábil.
                 valorContabilAcumulado -= inv.valorTotal;
             } else {
                 valorContabilAcumulado += inv.valorTotal;
@@ -102,7 +111,7 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         if (inv.situacao === 'Cancelada') {
             observacao = 'CANCELADA';
         } else if (inv.finalidade === 'Devolução') {
-            observacao = 'DEVOLUÇÃO';
+            observacao = isSaida ? 'DEVOLUÇÃO DE COMPRA' : 'DEVOLUÇÃO DE VENDA';
         } else if (isRemessa) {
             observacao = 'REMESSA';
         }
@@ -113,7 +122,7 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
             inv.numero.toString(),
             formatDate(inv.dataEmissao),
             inv.cfop.toString(),
-            getUfFromDestinatario(inv),
+            getUf(inv, type),
             formatCurrency(inv.valorTotal),
             formatCurrency(valorContabilAcumulado),
             formatCurrency(inv.baseCalculoICMS),
@@ -124,12 +133,15 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         ];
     });
 
-    // Filtra apenas as autorizadas para os resumos
     const authorizedInvoices = invoices.filter(inv => inv.situacao === 'Autorizada');
     
     const styles = { fontSize: 6 };
     const headStyles = { fillColor: [230, 230, 230], textColor: 40, fontSize: 6, halign: 'center' };
     const columnStyles = {
+        0: { cellWidth: 35 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 50 },
         4: { halign: 'center' },
         5: { halign: 'center' },
         6: { halign: 'right' },
@@ -147,9 +159,9 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         body: mainTableBody,
         startY: 100,
         theme: 'grid',
-        styles: styles,
-        headStyles: headStyles,
-        columnStyles: columnStyles,
+        styles,
+        headStyles,
+        columnStyles,
         footStyles: boldStyle,
         didDrawPage: addHeaderAndFooterToPage,
     });
@@ -160,8 +172,9 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
     finalY += 20;
     if (finalY > doc.internal.pageSize.getHeight() - 100) {
         doc.addPage();
+        finalY = (doc.lastAutoTable as any).finalY || 100; // Reset Y after page break
         addHeaderAndFooterToPage({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { top: 0 } } });
-        finalY = 100;
+
     }
 
     doc.setFontSize(9).setFont('helvetica', 'bold');
@@ -177,7 +190,7 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         ['Total de Notas Processadas:', totalProcessadas.toString()],
         ['Total de Notas Autorizadas:', totalAutorizadas.toString()],
         ['Total de Notas Canceladas:', totalCanceladas.toString()],
-        ['Total de Devoluções (Compra):', totalDevolucoes.toString()],
+        ['Total de Devoluções:', totalDevolucoes.toString() + (isSaida ? ' (Compra)' : ' (Venda)')],
     ];
 
     doc.autoTable({
@@ -187,7 +200,6 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         styles: { fontSize: 8 },
         columnStyles: { 0: { fontStyle: 'bold' } }
     });
-
     finalY = doc.lastAutoTable.finalY;
 
 
@@ -195,8 +207,8 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
     finalY += 20;
     if (finalY > doc.internal.pageSize.getHeight() - 100) {
         doc.addPage();
+        finalY = (doc.lastAutoTable as any).finalY || 100;
         addHeaderAndFooterToPage({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { top: 0 } } });
-        finalY = 100;
     }
 
     doc.setFontSize(9).setFont('helvetica', 'bold');
@@ -217,10 +229,16 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
     const cfopTableHead = [['CÓD. FISC.', 'VLR. CONTÁBIL', 'BASE CÁLC.', 'IMPOSTO', 'ISENTAS', 'OUTRAS']];
     const cfopTableBody: any[] = [];
     
-    const cfopGroups = {
-        '5000 - Saidas e/ou Prestação de serviços no estado': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('5')),
-        '6000 - Saidas e/ou Prestação de serviços de outros estados': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('6')),
-        '7000 - Saidas e/ou Prestação de serviços para o exterior': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('7')),
+    const cfopGroups = isSaida ? {
+        '1000/2000 - Entradas (Devoluções de Venda)': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('1') || cfop.startsWith('2')),
+        '5000 - Saídas e/ou Prestação de serviços no estado': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('5')),
+        '6000 - Saídas e/ou Prestação de serviços de outros estados': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('6')),
+        '7000 - Saídas e/ou Prestação de serviços para o exterior': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('7')),
+    } : {
+        '1000 - Entradas e/ou Aquisições de Serviços do Estado': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('1')),
+        '2000 - Entradas e/ou Aquisições de Serviços de Outros Estados': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('2')),
+        '3000 - Entradas e/ou Aquisições de Serviços do Exterior': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('3')),
+        '5000/6000 - Saídas (Devoluções de Compra)': Object.entries(cfopSummary).filter(([cfop]) => cfop.startsWith('5') || cfop.startsWith('6')),
     };
 
     let totalGeralCfop = { valorContabil: 0, baseCalculo: 0, imposto: 0 };
@@ -285,20 +303,20 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
     finalY += 20;
      if (finalY > doc.internal.pageSize.getHeight() - 80) {
         doc.addPage();
+        finalY = (doc.lastAutoTable as any).finalY || 100;
         addHeaderAndFooterToPage({ pageNumber: (doc as any).internal.getNumberOfPages(), settings: { margin: { top: 0 } } });
-        finalY = 100;
     }
 
     doc.setFontSize(9).setFont('helvetica', 'bold');
-    doc.text('DEMONSTRATIVO POR ESTADO DE DESTINO DA MERCADORIA OU DA PRESTACAO DO SERVICO', margin, finalY);
+    doc.text(isSaida ? 'DEMONSTRATIVO POR ESTADO DE DESTINO DA MERCADORIA OU DA PRESTACAO DO SERVICO' : 'DEMONSTRATIVO POR ESTADO DE ORIGEM DA MERCADORIA OU DA PRESTACAO DO SERVICO', margin, finalY);
     finalY += 12;
     doc.setFontSize(8).setFont('helvetica', 'normal');
-    doc.text('Operacoes realizadas com nao contribuintes', margin, finalY);
+    doc.text(isSaida ? 'Operacoes realizadas com nao contribuintes' : 'Operacoes realizadas com fornecedores', margin, finalY);
     finalY += 15;
 
     const ufSummary: { [key: string]: { valorContabil: number, baseCalculo: number, icmsFonte: number } } = {};
     authorizedInvoices.forEach(inv => {
-        const uf = getUfFromDestinatario(inv);
+        const uf = getUf(inv, type);
         if (!ufSummary[uf]) {
             ufSummary[uf] = { valorContabil: 0, baseCalculo: 0, icmsFonte: 0 };
         }
@@ -325,24 +343,24 @@ export function generateSaidasPDF(invoices: NFe[], monthYear?: string) {
         columnStyles: { 0: { halign: 'center' }, 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
     });
 
-    // Loop final para substituir o placeholder
+    // Final page number replacement
     const totalPages = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
         const textToReplace = `Página ${i} de {totalPages}`;
         const newText = `Página ${i} de ${totalPages}`;
-        // Para substituir, redesenhamos o texto com a cor de fundo para "apagar" e depois escrevemos o novo
         const textWidth = doc.getTextWidth(textToReplace);
-        doc.setFillColor(255, 255, 255); // Branco
+        doc.setFillColor(255, 255, 255);
         doc.rect(pageWidth - margin - textWidth - 2, doc.internal.pageSize.getHeight() - 15, textWidth + 4, 10, 'F');
         doc.text(newText, pageWidth - margin, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
     }
 
-    const emitterName = invoices[0].emitente.nome
+    const companyNameForFile = company.nome
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '');
-    const filename = monthYear ? `livro-saida-${emitterName}-${monthYear}.pdf` : `livro-saida-${emitterName}.pdf`;
+        
+    const filename = `livro-${type}-${companyNameForFile}-${monthYear}.pdf`;
     doc.save(filename);
 }

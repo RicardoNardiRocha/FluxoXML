@@ -3,6 +3,10 @@ export type NFe = {
   numero: number;
   serie: number;
   dataEmissao: string;
+
+  // ✅ CNPJ/CPF do "cliente do livro" ao qual essa NF foi atribuída (para multi-clientes)
+  empresaDoc?: string;
+
   emitente: {
     nome: string;
     cnpj: string;
