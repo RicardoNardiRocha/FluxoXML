@@ -57,10 +57,10 @@ export function FilterControls({
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-2">
-            <Label htmlFor="client-filter">Cliente / Fornecedor</Label>
+            <Label htmlFor="client-filter">Nome</Label>
             <Input
               id="client-filter"
-              placeholder="Nome do cliente ou fornecedor"
+              placeholder="Nome do emitente ou destinatário"
               value={filters.client}
               onChange={(e) =>
                 onFilterChange({ ...filters, client: e.target.value })

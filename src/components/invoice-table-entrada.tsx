@@ -146,7 +146,7 @@ export function InvoiceTableEntrada({ invoices, isLoading }: InvoiceTableProps) 
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[100px]">Nº Nota</TableHead>
-                <TableHead>Fornecedor</TableHead>
+                <TableHead>Emitente</TableHead>
                 <TableHead className="text-center">CFOP</TableHead>
                 <TableHead className="text-center">Data Emissão</TableHead>
                 <TableHead className="text-center">Situação</TableHead>
