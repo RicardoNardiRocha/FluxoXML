@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { NFe } from '@/lib/data';
 import { SummaryCards } from './summary-cards';
 import { InvoiceTable } from './invoice-table';
@@ -8,11 +8,9 @@ import { FilterControls, type Filters } from './filter-controls';
 import { FileUploader } from './file-uploader';
 import { useToast } from '@/hooks/use-toast';
 import { processNFeXML } from '@/lib/xml-parser';
-import { CompanyDocsPanel } from './company-docs-panel';
 
 export function Dashboard() {
   const [invoices, setInvoices] = useState<NFe[]>([]);
-  const [companyDocs, setCompanyDocs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({
@@ -28,20 +26,7 @@ export function Dashboard() {
     setIsLoading(false);
   }, []);
 
-  const onDocsChange = useCallback((docs: string[]) => {
-    setCompanyDocs(docs);
-  }, []);
-
   const handleFileUpload = async (files: File[]) => {
-    if (!companyDocs.length) {
-      toast({
-        variant: 'destructive',
-        title: 'Falta a lista de CNPJs/CPFs',
-        description: 'Cole/importe a lista de clientes e clique em “Salvar lista” antes de importar XMLs.',
-      });
-      return;
-    }
-
     setIsLoading(true);
     toast({ title: 'Processando arquivos...', description: 'Aguarde enquanto os arquivos XML são validados.' });
 
@@ -54,7 +39,9 @@ export function Dashboard() {
 
       for (const file of files) {
         const xmlText = await file.text();
-        const parsed = processNFeXML(xmlText, { companyDocs });
+        // Para o livro de saída, não precisamos passar os CNPJ/CPF da empresa.
+        // O parser vai identificar a perspectiva baseado no tipo da nota (tpNF).
+        const parsed = processNFeXML(xmlText);
         if (!parsed) continue;
 
         if (parsed.kind === "nfe") {
@@ -82,7 +69,11 @@ export function Dashboard() {
       const newInvoices = Array.from(nfeById.values());
 
       if (newInvoices.length === 0 && files.length > 0 && cancelKeys.length === 0) {
-        throw new Error("Nenhuma nota válida encontrada para o Livro de Saídas (emitente não bate com a lista).");
+        toast({
+          variant: 'destructive',
+          title: 'Nenhuma nota de saída encontrada',
+          description: 'Os arquivos importados não parecem ser notas de saída (venda/devolução de compra).',
+        });
       }
 
       setInvoices(prev => {
@@ -102,12 +93,13 @@ export function Dashboard() {
         return Array.from(combined.values());
       });
 
-      toast({
-        title: 'Importação Concluída!',
-        description: `Arquivos: ${files.length}. Ignoradas: ${ignoredEntrada} (entrada) e ${ignoredTerceiro} (terceiros).`,
-        variant: 'success',
-      });
-
+      if (newInvoices.length > 0 || cancelKeys.length > 0) {
+        toast({
+          title: 'Importação Concluída!',
+          description: `Arquivos: ${files.length}. Ignoradas: ${ignoredEntrada} (entrada) e ${ignoredTerceiro} (terceiros).`,
+          variant: 'success',
+        });
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -143,8 +135,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <CompanyDocsPanel onChange={onDocsChange} />
-
       <SummaryCards invoices={filteredInvoices} />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">
