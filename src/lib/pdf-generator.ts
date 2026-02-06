@@ -17,9 +17,7 @@ const formatCurrency = (value: number) => {
 };
 
 const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    // Adiciona o fuso horário para garantir que a data não mude
-    return new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000).toLocaleDateString('pt-BR');
+    return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
 function getUf(invoice: NFe, type: 'saida' | 'entrada'): string {
