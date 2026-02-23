@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo } from 'react';
@@ -17,15 +18,16 @@ const formatCurrency = (value: number) => {
     });
   };
 
-// Lista de CFOPs que caracterizam Compra
+// Lista de CFOPs que caracterizam Compra (Entrada de mercadorias/serviços com custo)
 const PURCHASE_CFOPS = [
-    // Compras para Industrialização, Produção Rural, Comercialização ou Prestação de Serviços
+    // Compras Estaduais (1xxx)
     1101, 1102, 1111, 1113, 1116, 1117, 1118, 1120, 1121, 1122, 1124, 1125, 1126, 1128,
+    1401, 1403, 1407, 1551, 1556,
+    // Compras Interestaduais (2xxx)
     2101, 2102, 2111, 2113, 2116, 2117, 2118, 2120, 2121, 2122, 2124, 2125, 2126, 2128,
-    // Compras para Ativo Imobilizado e Uso/Consumo
-    1551, 1556, 2551, 2556,
-    // Compras com ST
-    1401, 1403, 1407, 2401, 2403, 2407
+    2401, 2403, 2407, 2551, 2556,
+    // Compras do Exterior / Importações (3xxx)
+    3101, 3102, 3127, 3551, 3556
 ];
 
 export function SummaryCardsEntrada({ invoices }: SummaryCardsProps) {
@@ -34,9 +36,10 @@ export function SummaryCardsEntrada({ invoices }: SummaryCardsProps) {
       (invoice) => invoice.situacao === 'Autorizada'
     );
     
-    // Total Comprado considera apenas notas autorizadas de compra (não devoluções)
+    // Total Comprado considera apenas notas autorizadas de compra (não devoluções ou remessas)
     const totalPurchased = authorizedInvoices.reduce((sum, inv) => {
         const isPurchase = PURCHASE_CFOPS.includes(inv.cfop);
+        // Excluímos notas marcadas explicitamente como Devolução para não inflar o faturamento de compras
         if (isPurchase && inv.finalidade !== 'Devolução') {
             return sum + inv.valorTotal;
         }
