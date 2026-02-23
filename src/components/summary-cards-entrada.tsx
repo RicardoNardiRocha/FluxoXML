@@ -19,8 +19,9 @@ const formatCurrency = (value: number) => {
   };
 
 /**
- * Lista de CFOPs que caracterizam Compra (Entrada de mercadorias/serviços com custo)
- * Baseado na Tabela de CFOPs da SEFAZ.
+ * Lista de CFOPs que caracterizam Compra para o Destinatário.
+ * Inclui os códigos de entrada (1xxx, 2xxx, 3xxx) e os espelhos de venda (5xxx, 6xxx)
+ * emitidos pelos fornecedores.
  */
 const PURCHASE_CFOPS = [
     // Compras Estaduais (1xxx)
@@ -30,7 +31,13 @@ const PURCHASE_CFOPS = [
     2101, 2102, 2111, 2113, 2116, 2117, 2118, 2120, 2121, 2122, 2124, 2125, 2126, 2128,
     2401, 2403, 2407, 2551, 2556,
     // Compras do Exterior / Importações (3xxx)
-    3101, 3102, 3127, 3551, 3556
+    3101, 3102, 3127, 3551, 3556,
+    // Vendas do Fornecedor (5xxx) - Que para o destinatário são compras
+    5101, 5102, 5111, 5113, 5116, 5117, 5118, 5120, 5122, 5124, 5125,
+    5401, 5403, 5405, 5551,
+    // Vendas Interestaduais do Fornecedor (6xxx) - Que para o destinatário são compras
+    6101, 6102, 6111, 6113, 6116, 6117, 6118, 6120, 6122, 6124, 6125,
+    6401, 6403, 6404, 6551
 ];
 
 export function SummaryCardsEntrada({ invoices }: SummaryCardsProps) {
@@ -39,7 +46,7 @@ export function SummaryCardsEntrada({ invoices }: SummaryCardsProps) {
       (invoice) => invoice.situacao === 'Autorizada'
     );
     
-    // Total Comprado: Considera apenas notas autorizadas de compra legítima
+    // Total Comprado: Considera apenas notas autorizadas de compra legítima (pela ótica do comprador)
     const totalPurchased = authorizedInvoices.reduce((sum, inv) => {
         const isPurchase = PURCHASE_CFOPS.includes(inv.cfop);
         // Excluímos notas de devolução para não inflar o custo de aquisição
