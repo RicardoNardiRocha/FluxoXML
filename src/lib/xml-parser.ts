@@ -1,7 +1,11 @@
+
 import type { NFe } from "./data";
 
 const NFE_NS = "http://www.portalfiscal.inf.br/nfe";
 
+/**
+ * Funções auxiliares para navegação no DOM do XML
+ */
 function firstEl(xml: Element | Document | null | undefined, tag: string, ns = NFE_NS): Element | undefined {
   if (!xml) return undefined;
   const list = xml.getElementsByTagNameNS?.(ns, tag);
@@ -42,7 +46,7 @@ export type ParseMeta = {
   emitCNPJ?: string;
   destCNPJ?: string;
   destCPF?: string;
-  empresaDoc?: string; // ✅ doc do cliente atribuído
+  empresaDoc?: string;
   perspectiva: "entrada" | "saida" | "terceiro";
   cfops: number[];
   cfopResumo: Record<number, { vProd: number; qtdItens: number }>;
@@ -52,40 +56,26 @@ export type ParseResult =
   | { kind: "nfe"; nfe: NFe; meta: ParseMeta }
   | { kind: "cancelamento"; chave: string };
 
+/**
+ * Função principal para processar o conteúdo de um arquivo XML de NF-e
+ */
 export function processNFeXML(
   xmlText: string,
-  opts?: { companyDocs?: string[] } // CNPJs/CPFs (somente dígitos) da(s) empresa(s) do seu "universo"
+  opts?: { companyDocs?: string[] }
 ): ParseResult | null {
   try {
     const xmlDoc = new DOMParser().parseFromString(xmlText, "text/xml");
     if (xmlDoc.querySelector("parsererror")) return null;
 
-    // =========================
-    // 1) EVENTO (Cancelamento)
-    // =========================
+    // 1) Verificação de Cancelamento (Evento)
     const infEvento = firstEl(xmlDoc, "infEvento");
     const tpEvento = tagText(infEvento, "tpEvento");
-    const detEvento = firstEl(infEvento, "detEvento");
-    const descEvento = tagText(detEvento, "descEvento")?.toLowerCase();
-
-    const isCancelEvent = tpEvento === "110111" || (descEvento?.includes("cancel") ?? false);
-    if (isCancelEvent) {
-      const cStatEv =
-        tagText(firstEl(firstEl(xmlDoc, "retEvento"), "infEvento"), "cStat") ??
-        tagText(infEvento, "cStat");
-
-      const chave = tagText(infEvento, "chNFe") ?? tagText(firstEl(xmlDoc, "infProt"), "chNFe");
-      if (!chave) return null;
-
-      if (cStatEv === "135" || cStatEv === "155" || cStatEv === "101" || cStatEv === "151") {
-        return { kind: "cancelamento", chave };
-      }
-      return null;
+    if (tpEvento === "110111") {
+      const chave = tagText(infEvento, "chNFe") || tagText(firstEl(xmlDoc, "infProt"), "chNFe");
+      if (chave) return { kind: "cancelamento", chave };
     }
 
-    // =========================
-    // 2) NF-e
-    // =========================
+    // 2) Processamento da NF-e
     const nfeProc = firstEl(xmlDoc, "nfeProc");
     const nfeNode = firstEl(xmlDoc, "NFe");
     const rootEl = (nfeProc || nfeNode) as Element | undefined;
@@ -99,66 +89,50 @@ export function processNFeXML(
     const enderEmit = firstEl(emit, "enderEmit");
     const dest = firstEl(infNFe, "dest");
     const enderDest = firstEl(dest, "enderDest");
-
     const total = firstEl(infNFe, "total");
     const icmsTot = firstEl(total, "ICMSTot");
 
-    // Chave
+    // Identificação Básica
     const idAttr = attr(infNFe, "Id");
-    const chave =
-      idAttr?.startsWith("NFe")
-        ? idAttr.slice(3)
-        : tagText(firstEl(rootEl, "infProt"), "chNFe") ?? `temp-${Math.random()}`;
+    const chave = idAttr?.startsWith("NFe") 
+      ? idAttr.slice(3) 
+      : tagText(firstEl(rootEl, "infProt"), "chNFe") || `temp-${Math.random()}`;
 
-    // Situação (protocolo)
-    const cStat = tagText(firstEl(rootEl, "infProt"), "cStat");
-    const situacao: NFe["situacao"] = cStat === "100" ? "Autorizada" : "Autorizada";
-
-    // Docs / tpNF
     const tpNF = tagText(ide, "tpNF") as "0" | "1" | undefined;
     const emitCNPJ = onlyDigits(tagText(emit, "CNPJ"));
     const destCNPJ = onlyDigits(tagText(dest, "CNPJ"));
     const destCPF = onlyDigits(tagText(dest, "CPF"));
 
+    // Lógica de Perspectiva (Entrada/Saída/Terceiro)
     const companyDocsArr = (opts?.companyDocs ?? []).map(onlyDigits).filter(Boolean);
     const companySet = new Set(companyDocsArr);
 
-    // Perspectiva do SEU universo:
     let perspectiva: ParseMeta["perspectiva"] = "terceiro";
     let empresaDoc: string | undefined;
 
     if (companySet.size > 0) {
-      if (destCNPJ && companySet.has(destCNPJ)) {
+      if ((destCNPJ && companySet.has(destCNPJ)) || (destCPF && companySet.has(destCPF))) {
         perspectiva = "entrada";
-        empresaDoc = destCNPJ;
-      } else if (destCPF && companySet.has(destCPF)) {
-        perspectiva = "entrada";
-        empresaDoc = destCPF;
+        empresaDoc = destCNPJ || destCPF;
       } else if (emitCNPJ && companySet.has(emitCNPJ)) {
-        // se a empresa está no emitente: tpNF=1 é saída, tpNF=0 é entrada (NF de entrada própria)
         perspectiva = tpNF === "1" ? "saida" : "entrada";
         empresaDoc = emitCNPJ;
-      } else {
-        perspectiva = "terceiro";
       }
     } else {
-      // Se nenhuma empresa foi definida, a perspectiva é indeterminada, mas
-      // para evitar ignorar tudo, podemos tratar baseado no tipo da nota
       perspectiva = tpNF === '1' ? 'saida' : 'entrada';
     }
 
-
-    // CFOP por item (não só primeiro det)
+    // Processamento de Itens e CFOPs
     const dets = allEls(infNFe, "det");
     const cfopResumo: ParseMeta["cfopResumo"] = {};
     const cfops: number[] = [];
 
     for (const det of dets) {
       const prod = firstEl(det, "prod");
-      const cf = int(tagText(prod ?? det, "CFOP"));
+      const cf = int(tagText(prod, "CFOP"));
       if (!cf) continue;
 
-      const vProd = num(tagText(prod ?? det, "vProd"));
+      const vProd = num(tagText(prod, "vProd"));
       cfops.push(cf);
 
       if (!cfopResumo[cf]) cfopResumo[cf] = { vProd: 0, qtdItens: 0 };
@@ -166,62 +140,43 @@ export function processNFeXML(
       cfopResumo[cf].qtdItens += 1;
     }
 
-    // CFOP principal = maior vProd somado
-    const cfopPrincipal =
-      Object.entries(cfopResumo).sort((a, b) => b[1].vProd - a[1].vProd)[0]?.[0] ?? "0";
+    // O CFOP Principal da nota é aquele que representa o maior valor financeiro
+    const cfopPrincipal = Object.entries(cfopResumo)
+      .sort((a, b) => b[1].vProd - a[1].vProd)[0]?.[0] || "0";
 
-    // Finalidade / devolução
+    // Finalidade e Verificação de Devolução
     const finNFe = tagText(ide, "finNFe");
     const natOp = (tagText(ide, "natOp") ?? "").toLowerCase();
-    const isDevolucao =
-      finNFe === "4" ||
-      natOp.includes("devolu") ||
-      cfops.some((c) => c === 1202 || c === 2202 || c === 5202 || c === 6202);
+    const isDevolucao = finNFe === "4" || natOp.includes("devolu") || 
+                       cfops.some(c => [1202, 2202, 5202, 6202, 1411, 2411, 5411, 6411].includes(c));
 
     const nfe: NFe = {
       id: chave,
       numero: int(tagText(ide, "nNF")),
       serie: int(tagText(ide, "serie")),
       dataEmissao: tagText(ide, "dhEmi") ?? tagText(ide, "dEmi") ?? new Date().toISOString(),
-
-      // ✅ atribuição do cliente
-      empresaDoc: empresaDoc,
-
+      empresaDoc,
       emitente: {
-        nome: tagText(emit, "xNome") ?? "Não identificado",
-        cnpj: tagText(emit, "CNPJ") ?? "N/A",
+        nome: tagText(emit, "xNome") ?? "Desconhecido",
+        cnpj: onlyDigits(tagText(emit, "CNPJ")),
         ie: tagText(emit, "IE") ?? "N/A",
-        uf: tagText(enderEmit, "UF") ?? "N/A",
+        uf: tagText(enderEmit, "UF") ?? "SP",
       },
       destinatario: {
         nome: tagText(dest, "xNome") ?? "Consumidor Final",
-        cnpj: tagText(dest, "CNPJ") ?? tagText(dest, "CPF") ?? undefined,
-        ie: tagText(dest, "IE") ?? undefined,
-        uf: tagText(enderDest, "UF") ?? "N/A",
+        cnpj: onlyDigits(tagText(dest, "CNPJ") || tagText(dest, "CPF")),
+        ie: tagText(dest, "IE") ?? "N/A",
+        uf: tagText(enderDest, "UF") ?? "SP",
       },
       cfop: int(cfopPrincipal),
-      situacao,
+      situacao: "Autorizada",
       finalidade: isDevolucao ? "Devolução" : "Normal",
       valorTotal: num(tagText(icmsTot, "vNF")),
       baseCalculoICMS: num(tagText(icmsTot, "vBC")),
       valorICMS: num(tagText(icmsTot, "vICMS")),
     };
 
-    return {
-      kind: "nfe",
-      nfe,
-      meta: {
-        chave,
-        tpNF,
-        emitCNPJ: emitCNPJ || undefined,
-        destCNPJ: destCNPJ || undefined,
-        destCPF: destCPF || undefined,
-        empresaDoc,
-        perspectiva,
-        cfops: Array.from(new Set(cfops)),
-        cfopResumo,
-      },
-    };
+    return { kind: "nfe", nfe, meta: { chave, tpNF, emitCNPJ, destCNPJ, perspectiva, cfops, cfopResumo } };
   } catch {
     return null;
   }

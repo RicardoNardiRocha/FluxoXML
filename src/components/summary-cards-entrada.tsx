@@ -18,7 +18,10 @@ const formatCurrency = (value: number) => {
     });
   };
 
-// Lista de CFOPs que caracterizam Compra (Entrada de mercadorias/serviços com custo)
+/**
+ * Lista de CFOPs que caracterizam Compra (Entrada de mercadorias/serviços com custo)
+ * Baseado na Tabela de CFOPs da SEFAZ.
+ */
 const PURCHASE_CFOPS = [
     // Compras Estaduais (1xxx)
     1101, 1102, 1111, 1113, 1116, 1117, 1118, 1120, 1121, 1122, 1124, 1125, 1126, 1128,
@@ -36,17 +39,17 @@ export function SummaryCardsEntrada({ invoices }: SummaryCardsProps) {
       (invoice) => invoice.situacao === 'Autorizada'
     );
     
-    // Total Comprado considera apenas notas autorizadas de compra (não devoluções ou remessas)
+    // Total Comprado: Considera apenas notas autorizadas de compra legítima
     const totalPurchased = authorizedInvoices.reduce((sum, inv) => {
         const isPurchase = PURCHASE_CFOPS.includes(inv.cfop);
-        // Excluímos notas marcadas explicitamente como Devolução para não inflar o faturamento de compras
+        // Excluímos notas de devolução para não inflar o custo de aquisição
         if (isPurchase && inv.finalidade !== 'Devolução') {
             return sum + inv.valorTotal;
         }
         return sum;
     }, 0);
 
-    // O total de impostos (crédito) considera todas as entradas autorizadas
+    // Total de impostos (Crédito de ICMS na entrada)
     const totalTaxesCredit = authorizedInvoices.reduce( (sum, inv) => {
         return sum + inv.valorICMS;
     }, 0);
