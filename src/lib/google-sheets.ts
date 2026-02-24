@@ -2,17 +2,13 @@ import type { NFe } from './data';
 
 /**
  * Organiza os dados das notas para o formato de resumo consolidado por Empresa e Período.
- * Remove a Base de Cálculo, inclui a contagem de XMLs e ordena os CFOPs de forma crescente.
+ * Envia um array de objetos para que o Webhook do Google possa mapear as colunas corretamente.
  */
 export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entrada', webhookUrl: string) {
   if (!webhookUrl) throw new Error("URL do Webhook não fornecida.");
 
-  // 1. Identificar todos os CFOPs únicos presentes para criar colunas dinâmicas, ordenados de forma crescente
-  const allCfops = Array.from(new Set(invoices.map(inv => inv.cfop))).sort((a, b) => a - b);
-  
-  // 2. Agrupar dados pelo "Dono do Livro" (Sua Empresa) e por Mês
+  // 1. Agrupar dados pelo "Dono do Livro" (Sua Empresa) e por Mês
   const grouped = invoices.reduce((acc, inv) => {
-    // Na Saída, o dono é o Emitente. Na Entrada, o dono é o Destinatário.
     const owner = type === 'saida' ? inv.emitente : inv.destinatario;
     const ownerDoc = owner.cnpj || "N/A";
     const ownerName = owner.nome;
@@ -30,10 +26,8 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
       };
     }
 
-    // Incrementa a contagem de XMLs
     acc[key].xmlCount++;
 
-    // Apenas notas autorizadas somam valores financeiros
     if (inv.situacao === 'Autorizada') {
       acc[key].cfops[inv.cfop] = (acc[key].cfops[inv.cfop] || 0) + inv.valorTotal;
       acc[key].total += inv.valorTotal;
@@ -42,46 +36,37 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
     return acc;
   }, {} as Record<string, { period: string, doc: string, name: string, xmlCount: number, cfops: Record<number, number>, total: number }>);
 
-  // 3. Preparar o cabeçalho: MÊS/ANO | CNPJ/CPF | EMPRESA | QUANTIDADE XML | CFOPs (ordenados) | TOTAL GERAL
-  const headers = [
-    "MÊS/ANO", 
-    "CNPJ/CPF", 
-    "EMPRESA", 
-    "QUANTIDADE XML", 
-    ...allCfops.map(c => `CFOP ${c}`), 
-    "TOTAL GERAL"
-  ];
-  
-  // 4. Preparar as linhas de dados consolidados
+  // 2. Preparar as linhas como Objetos (chave: valor)
+  // Isso permite que o script do Google identifique qual valor pertence a qual CFOP
   const rows = Object.values(grouped).map(group => {
     const [year, month] = group.period.split('-');
     const periodFormatted = `${month}/${year}`;
     
-    const row: (string | number)[] = [
-      periodFormatted,
-      group.doc,
-      group.name,
-      group.xmlCount
-    ];
+    // Objeto base com as colunas fixas
+    const rowObj: Record<string, string | number> = {
+      "MÊS/ANO": periodFormatted,
+      "CNPJ/CPF": group.doc,
+      "EMPRESA": group.name,
+      "QUANTIDADE XML": group.xmlCount,
+      "TOTAL GERAL": group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    };
 
-    // Preenche cada coluna de CFOP com o valor correspondente ou 0 se não houver
-    allCfops.forEach(cfop => {
-      const val = group.cfops[cfop] || 0;
-      row.push(val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    // Adiciona dinamicamente os CFOPs como chaves do objeto
+    Object.entries(group.cfops).forEach(([cfop, valor]) => {
+      rowObj[`CFOP ${cfop}`] = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 
-    row.push(group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-    return row;
+    return rowObj;
   });
 
-  // 5. Enviar para o Google Apps Script via POST
+  // 3. Enviar para o Google Apps Script
   const response = await fetch(webhookUrl, {
     method: 'POST',
     mode: 'no-cors',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ headers, rows }),
+    body: JSON.stringify({ rows }),
   });
 
   return response;
