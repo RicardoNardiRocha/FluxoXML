@@ -12,7 +12,8 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
     const owner = type === 'saida' ? inv.emitente : inv.destinatario;
     const ownerDoc = owner.cnpj || "N/A";
     const ownerName = owner.nome;
-    const period = inv.dataEmissao.substring(0, 7); // YYYY-MM
+    const periodDate = new Date(inv.dataEmissao);
+    const period = `${(periodDate.getMonth() + 1).toString().padStart(2, '0')}/${periodDate.getFullYear()}`;
     const key = `${period}-${ownerDoc}`;
 
     if (!acc[key]) {
@@ -37,22 +38,23 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
   }, {} as Record<string, { period: string, doc: string, name: string, xmlCount: number, cfops: Record<number, number>, total: number }>);
 
   // 2. Preparar as linhas como Objetos (chave: valor)
-  // Isso permite que o script do Google identifique qual valor pertence a qual CFOP
+  // O script do Google usará as chaves para identificar as colunas
   const rows = Object.values(grouped).map(group => {
-    const [year, month] = group.period.split('-');
-    const periodFormatted = `${month}/${year}`;
-    
     // Objeto base com as colunas fixas
     const rowObj: Record<string, string | number> = {
-      "MÊS/ANO": periodFormatted,
+      "MÊS/ANO": group.period,
       "CNPJ/CPF": group.doc,
       "EMPRESA": group.name,
       "QUANTIDADE XML": group.xmlCount,
       "TOTAL GERAL": group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     };
 
-    // Adiciona dinamicamente os CFOPs como chaves do objeto
-    Object.entries(group.cfops).forEach(([cfop, valor]) => {
+    // Adiciona dinamicamente os CFOPs como chaves do objeto (ex: "CFOP 5102")
+    // Ordenamos os CFOPs para manter uma consistência visual
+    const sortedCfops = Object.keys(group.cfops).map(Number).sort((a, b) => a - b);
+    
+    sortedCfops.forEach(cfop => {
+      const valor = group.cfops[cfop];
       rowObj[`CFOP ${cfop}`] = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 
