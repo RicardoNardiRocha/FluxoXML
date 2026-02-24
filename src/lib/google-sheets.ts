@@ -40,7 +40,7 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
 
   // 2. Preparar as linhas como Objetos (chave: valor)
   const rows = Object.values(grouped).map(group => {
-    // Objeto base com as colunas fixas
+    // Objeto base com as colunas fixas (Sem Base de Cálculo conforme solicitado)
     const rowObj: Record<string, string | number> = {
       "MÊS/ANO": group.period,
       "CNPJ/CPF": group.doc,
@@ -53,6 +53,7 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
     
     sortedCfops.forEach(cfop => {
       const valor = group.cfops[cfop];
+      // Formatamos como string para garantir a vírgula decimal no Google Sheets
       rowObj[`CFOP ${cfop}`] = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 
@@ -63,9 +64,10 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
   });
 
   // 3. Enviar para o Google Apps Script
+  // Usamos fetch com os dados em JSON. O script do Google identificará as chaves e criará as colunas.
   const response = await fetch(webhookUrl, {
     method: 'POST',
-    mode: 'no-cors',
+    mode: 'no-cors', // Necessário para evitar bloqueios de CORS no navegador
     headers: {
       'Content-Type': 'application/json',
     },
