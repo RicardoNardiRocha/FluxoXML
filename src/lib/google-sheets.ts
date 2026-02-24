@@ -9,8 +9,9 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
 
   // 1. Agrupar dados pelo "Dono do Livro" (Sua Empresa) e por Mês
   const grouped = invoices.reduce((acc, inv) => {
+    // O dono do livro é o emitente na saída e o destinatário na entrada
     const owner = type === 'saida' ? inv.emitente : inv.destinatario;
-    const ownerDoc = owner.cnpj || owner.cnpj || "N/A"; // CNPJ ou CPF
+    const ownerDoc = owner.cnpj || "N/A"; 
     const ownerName = owner.nome;
     const periodDate = new Date(inv.dataEmissao);
     const period = `${(periodDate.getMonth() + 1).toString().padStart(2, '0')}/${periodDate.getFullYear()}`;
@@ -56,7 +57,7 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
       rowObj[`CFOP ${cfop}`] = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 
-    // Total Geral sempre no fim do objeto (embora o script do Google garanta a posição na planilha)
+    // Total Geral sempre no fim do objeto
     rowObj["TOTAL GERAL"] = group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     return rowObj;
