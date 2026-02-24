@@ -1,5 +1,6 @@
 import { DashboardEntrada } from '@/components/dashboard-entrada';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { CopyHelper } from '@/components/copy-helper';
 import {
   Sidebar,
   SidebarContent,
@@ -45,8 +46,9 @@ export default function LivroEntradaPage() {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter>
+        <SidebarFooter className="flex-row items-center justify-between p-4">
           <ThemeToggle />
+          <CopyHelper />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
