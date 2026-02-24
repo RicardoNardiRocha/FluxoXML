@@ -10,7 +10,7 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
   // 1. Agrupar dados pelo "Dono do Livro" (Sua Empresa) e por Mês
   const grouped = invoices.reduce((acc, inv) => {
     const owner = type === 'saida' ? inv.emitente : inv.destinatario;
-    const ownerDoc = owner.cnpj || "N/A";
+    const ownerDoc = owner.cnpj || owner.cnpj || "N/A"; // CNPJ ou CPF
     const ownerName = owner.nome;
     const periodDate = new Date(inv.dataEmissao);
     const period = `${(periodDate.getMonth() + 1).toString().padStart(2, '0')}/${periodDate.getFullYear()}`;
@@ -38,25 +38,26 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
   }, {} as Record<string, { period: string, doc: string, name: string, xmlCount: number, cfops: Record<number, number>, total: number }>);
 
   // 2. Preparar as linhas como Objetos (chave: valor)
-  // O script do Google usará as chaves para identificar as colunas
   const rows = Object.values(grouped).map(group => {
     // Objeto base com as colunas fixas
     const rowObj: Record<string, string | number> = {
       "MÊS/ANO": group.period,
       "CNPJ/CPF": group.doc,
       "EMPRESA": group.name,
-      "QUANTIDADE XML": group.xmlCount,
-      "TOTAL GERAL": group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      "QUANTIDADE XML": group.xmlCount
     };
 
-    // Adiciona dinamicamente os CFOPs como chaves do objeto (ex: "CFOP 5102")
-    // Ordenamos os CFOPs para manter uma consistência visual
+    // Adiciona os CFOPs por ordem crescente
     const sortedCfops = Object.keys(group.cfops).map(Number).sort((a, b) => a - b);
     
     sortedCfops.forEach(cfop => {
       const valor = group.cfops[cfop];
+      // Enviamos como string formatada para evitar que o Google Sheets interprete pontos como separadores de milhar incorretamente
       rowObj[`CFOP ${cfop}`] = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
+
+    // Total Geral sempre no fim do objeto (embora o script do Google garanta a posição na planilha)
+    rowObj["TOTAL GERAL"] = group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     return rowObj;
   });
