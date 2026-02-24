@@ -53,7 +53,6 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
     
     sortedCfops.forEach(cfop => {
       const valor = group.cfops[cfop];
-      // Enviamos como string formatada para evitar que o Google Sheets interprete pontos como separadores de milhar incorretamente
       rowObj[`CFOP ${cfop}`] = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 
