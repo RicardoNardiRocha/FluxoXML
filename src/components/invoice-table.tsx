@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { NFe } from '@/lib/data';
@@ -17,14 +18,17 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { Button } from './ui/button';
-import { MoreHorizontal, Download, FileSearch, ArrowLeft, ArrowRight, FileX } from 'lucide-react';
+import { MoreHorizontal, Download, FileSearch, ArrowLeft, ArrowRight, FileX, Table as TableIcon } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { useState } from 'react';
 import { Skeleton } from './ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { generateBookPDF } from '@/lib/pdf-generator';
-
+import { sendToGoogleSheets } from '@/lib/google-sheets';
+import { Input } from './ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Label } from './ui/label';
 
 interface InvoiceTableProps {
   invoices: NFe[];
@@ -46,9 +50,10 @@ const formatDate = (dateString: string) => {
 
 export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [isExportingSheets, setIsExportingSheets] = useState(false);
   const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE);
   const { toast } = useToast();
-
 
   const paginatedInvoices = invoices.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -80,7 +85,7 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
   };
 
-  const handleExport = () => {
+  const handleExportBook = () => {
     if (invoices.length === 0) {
       toast({
         variant: 'destructive',
@@ -104,14 +109,13 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
 
       months.forEach(monthYear => {
         const monthInvoices = invoicesByMonth[monthYear];
-        // Sort invoices by date to ensure correct accumulated value calculation
         monthInvoices.sort((a, b) => new Date(a.dataEmissao).getTime() - new Date(b.dataEmissao).getTime());
         generateBookPDF(monthInvoices, { type: 'saida', monthYear });
       });
 
       toast({
-        title: 'Exportação Concluída!',
-        description: `Foram gerados ${months.length} arquivo(s) PDF, um para cada mês.`,
+        title: 'Livro PDF Gerado!',
+        description: `Foram gerados ${months.length} arquivo(s) PDF.`,
         variant: 'success',
       });
 
@@ -124,6 +128,34 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
     }
   };
 
+  const handleExportToSheets = async () => {
+    if (!webhookUrl) {
+      toast({
+        variant: 'destructive',
+        title: 'Link da Planilha ausente',
+        description: 'Por favor, insira o link do seu Google Apps Script.',
+      });
+      return;
+    }
+
+    setIsExportingSheets(true);
+    try {
+      await sendToGoogleSheets(invoices, 'saida', webhookUrl);
+      toast({
+        title: 'Dados enviados!',
+        description: 'As informações foram enviadas para sua Planilha do Google.',
+        variant: 'success',
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Falha no envio',
+        description: error.message,
+      });
+    } finally {
+      setIsExportingSheets(false);
+    }
+  };
 
   return (
     <Card>
@@ -135,10 +167,45 @@ export function InvoiceTable({ invoices, isLoading }: InvoiceTableProps) {
               Lista detalhada de todas as notas fiscais importadas.
             </p>
           </div>
-          <Button onClick={handleExport}>
-            <Download className="mr-2 h-4 w-4" />
-            Exportar Livro
-          </Button>
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <TableIcon className="h-4 w-4" />
+                  Planilha Google
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">Configurar Planilha</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Insira o link da sua implantação do Google Apps Script.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="webhook">Link do Webhook</Label>
+                  <Input 
+                    id="webhook" 
+                    placeholder="https://script.google.com/macros/s/..." 
+                    value={webhookUrl}
+                    onChange={(e) => setWebhookUrl(e.target.value)}
+                  />
+                </div>
+                <Button 
+                  className="w-full" 
+                  onClick={handleExportToSheets}
+                  disabled={isExportingSheets || invoices.length === 0}
+                >
+                  {isExportingSheets ? "Enviando..." : "Enviar para Planilha"}
+                </Button>
+              </PopoverContent>
+            </Popover>
+
+            <Button onClick={handleExportBook}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar Livro PDF
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
