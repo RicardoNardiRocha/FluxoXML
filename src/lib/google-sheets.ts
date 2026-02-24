@@ -2,13 +2,13 @@ import type { NFe } from './data';
 
 /**
  * Organiza os dados das notas para o formato de resumo consolidado por Empresa e Período.
- * Substitui o valor do ICMS pela quantidade de arquivos XML processados.
+ * Remove a Base de Cálculo, inclui a contagem de XMLs e ordena os CFOPs de forma crescente.
  */
 export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entrada', webhookUrl: string) {
   if (!webhookUrl) throw new Error("URL do Webhook não fornecida.");
 
-  // 1. Identificar todos os CFOPs únicos presentes para criar colunas dinâmicas
-  const allCfops = Array.from(new Set(invoices.map(inv => inv.cfop))).sort();
+  // 1. Identificar todos os CFOPs únicos presentes para criar colunas dinâmicas, ordenados de forma crescente
+  const allCfops = Array.from(new Set(invoices.map(inv => inv.cfop))).sort((a, b) => a - b);
   
   // 2. Agrupar dados pelo "Dono do Livro" (Sua Empresa) e por Mês
   const grouped = invoices.reduce((acc, inv) => {
@@ -24,32 +24,29 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
         period,
         doc: ownerDoc,
         name: ownerName,
-        baseCalc: 0,
         xmlCount: 0,
         cfops: {} as Record<number, number>,
         total: 0
       };
     }
 
-    // Incrementa a contagem de XMLs (independente de estar autorizada ou não)
+    // Incrementa a contagem de XMLs
     acc[key].xmlCount++;
 
     // Apenas notas autorizadas somam valores financeiros
     if (inv.situacao === 'Autorizada') {
-      acc[key].baseCalc += inv.baseCalculoICMS;
       acc[key].cfops[inv.cfop] = (acc[key].cfops[inv.cfop] || 0) + inv.valorTotal;
       acc[key].total += inv.valorTotal;
     }
     
     return acc;
-  }, {} as Record<string, { period: string, doc: string, name: string, baseCalc: number, xmlCount: number, cfops: Record<number, number>, total: number }>);
+  }, {} as Record<string, { period: string, doc: string, name: string, xmlCount: number, cfops: Record<number, number>, total: number }>);
 
-  // 3. Preparar o cabeçalho explícito solicitado
+  // 3. Preparar o cabeçalho: MÊS/ANO | CNPJ/CPF | EMPRESA | QUANTIDADE XML | CFOPs (ordenados) | TOTAL GERAL
   const headers = [
     "MÊS/ANO", 
     "CNPJ/CPF", 
     "EMPRESA", 
-    "BASE DE CÁLCULO", 
     "QUANTIDADE XML", 
     ...allCfops.map(c => `CFOP ${c}`), 
     "TOTAL GERAL"
@@ -64,7 +61,6 @@ export async function sendToGoogleSheets(invoices: NFe[], type: 'saida' | 'entra
       periodFormatted,
       group.doc,
       group.name,
-      group.baseCalc.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       group.xmlCount
     ];
 
