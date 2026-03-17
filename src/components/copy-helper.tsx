@@ -6,32 +6,63 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useToast } from "@/hooks/use-toast";
 
 const GOOGLE_SCRIPT = `function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheets()[0];
+  var SPREADSHEET_ID = "1M-EjwxL6xzNN1Zrmv88yI_iXD4kHuI_fXsNfeg6Ia0M";
+  var SHEET_NAME = "DB"; // troque pelo nome real da aba
+  var LOG_SHEET_NAME = "LOG";
+
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  var logSheet = ss.getSheetByName(LOG_SHEET_NAME) || ss.insertSheet(LOG_SHEET_NAME);
   var lock = LockService.getScriptLock();
-  
+
   try {
     lock.waitLock(30000);
+
+    if (!e) throw new Error("Objeto 'e' não recebido.");
+    if (!e.postData) throw new Error("postData não recebido.");
+    if (!e.postData.contents) throw new Error("postData.contents vazio.");
+
+    logSheet.appendRow([
+      new Date(),
+      "RAW_PAYLOAD",
+      e.postData.contents
+    ]);
+
     var payload = JSON.parse(e.postData.contents);
+
+    if (!payload.rows) {
+      throw new Error("Payload sem 'rows'. Conteúdo: " + e.postData.contents);
+    }
+
+    if (!Array.isArray(payload.rows)) {
+      throw new Error("'rows' não é array.");
+    }
+
     var incomingRows = payload.rows;
 
-    incomingRows.forEach(function(row) {
-      // 1. Pega cabeçalhos atuais (Sempre atualizado)
-      var lastCol = Math.max(sheet.getLastColumn(), 1);
-      var currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h) { return String(h).trim(); });
+    if (incomingRows.length === 0) {
+      throw new Error("'rows' está vazio.");
+    }
 
-      // 2. Se a planilha estiver vazia, cria os cabeçalhos base
-      if (lastCol === 1 && (currentHeaders[0] === "" || currentHeaders[0] === "undefined")) {
-        var baseHeaders = ["MÊS/ANO", "CNPJ/CPF", "EMPRESA", "QUANTIDADE XML", "TOTAL GERAL"];
-        sheet.getRange(1, 1, 1, baseHeaders.length).setValues([baseHeaders]);
-        currentHeaders = baseHeaders;
-      }
+    var lastCol = Math.max(sheet.getLastColumn(), 1);
+    var currentHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+      .map(function(h) { return String(h).trim(); });
 
-      // 3. Identifica se a linha tem colunas novas (CFOPs novos)
+    if (lastCol === 1 && (currentHeaders[0] === "" || currentHeaders[0] === "undefined")) {
+      var baseHeaders = ["MÊS/ANO", "CNPJ/CPF", "EMPRESA", "QUANTIDADE XML", "TOTAL GERAL"];
+      sheet.getRange(1, 1, 1, baseHeaders.length).setValues([baseHeaders]);
+      currentHeaders = baseHeaders;
+    }
+
+    incomingRows.forEach(function(originalRow) {
+      var row = {};
+      Object.keys(originalRow).forEach(function(key) {
+        row[String(key).trim()] = originalRow[key];
+      });
+
       Object.keys(row).forEach(function(key) {
         var cleanKey = String(key).trim();
         if (currentHeaders.indexOf(cleanKey) === -1) {
-          // Encontrou um CFOP novo! Insere antes do "TOTAL GERAL"
           var totalIdx = currentHeaders.indexOf("TOTAL GERAL");
           if (totalIdx !== -1) {
             sheet.insertColumnBefore(totalIdx + 1);
@@ -39,29 +70,49 @@ const GOOGLE_SCRIPT = `function doPost(e) {
           } else {
             sheet.getRange(1, sheet.getLastColumn() + 1).setValue(cleanKey);
           }
-          // Atualiza a lista de cabeçalhos para as próximas chaves desta mesma linha
-          currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(h) { return String(h).trim(); });
+
+          currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+            .map(function(h) { return String(h).trim(); });
         }
       });
 
-      // 4. Prepara os dados na ordem exata das colunas atuais da planilha
       var finalRowData = currentHeaders.map(function(header) {
         return row[header] !== undefined ? row[header] : "";
       });
-      
-      // 5. ADICIONA A LINHA (APPEND) - Nunca usa clear ou setValues na área de dados
+
       sheet.appendRow(finalRowData);
     });
 
-    return ContentService.createTextOutput("Sucesso").setMimeType(ContentService.MimeType.TEXT);
+    logSheet.appendRow([
+      new Date(),
+      "SUCESSO",
+      "Linhas recebidas: " + incomingRows.length
+    ]);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, message: "Sucesso" }))
+      .setMimeType(ContentService.MimeType.JSON);
+
   } catch (error) {
-    return ContentService.createTextOutput("Erro: " + error.toString()).setMimeType(ContentService.MimeType.TEXT);
+    logSheet.appendRow([
+      new Date(),
+      "ERRO",
+      error.toString(),
+      e && e.postData ? e.postData.contents : "sem payload"
+    ]);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+
   } finally {
-    lock.releaseLock();
+    try {
+      lock.releaseLock();
+    } catch (err) {}
   }
 }`;
 
-const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzDg_zE6sbftBIWK_rS-7yAOm1FQ5pNmsP5I7BDqZEPh-VPk5ROOgQuLQtdcZD1kOep/exec";
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwysEpdJsLiy0IrjtgA7HPBP3tpOIyYuD2lnxm_cam9qmNMU5oaAwfhSvAG3SwKEOA2/exec";
 
 export function CopyHelper() {
   const { toast } = useToast();
